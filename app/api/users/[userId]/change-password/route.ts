@@ -44,7 +44,7 @@ export async function POST(
     const hashedPassword = await hash(newPassword, 12);
 
     // Update the user's password and reset the mustChangePassword flag
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: {
         id: userId,
       },
@@ -52,9 +52,21 @@ export async function POST(
         password: hashedPassword,
         mustChangePassword: false,
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        tenantId: true,
+        mustChangePassword: false
+      }
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      user: updatedUser,
+      redirectUrl: "/dashboard"
+    });
   } catch (error) {
     console.error("[CHANGE_PASSWORD]", error);
     return new NextResponse("Internal Error", { status: 500 });

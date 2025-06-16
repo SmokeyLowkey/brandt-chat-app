@@ -30,17 +30,26 @@ export default function ChangePasswordPage() {
   }, [session, status, router]);
 
   const handlePasswordChangeSuccess = async () => {
-    // Update the session to reflect that the password has been changed
-    await update({
-      ...session,
-      user: {
-        ...session?.user,
-        mustChangePassword: false,
-      },
-    });
+    try {
+      // Update the session to reflect that the password has been changed
+      await update({
+        ...session,
+        user: {
+          ...session?.user,
+          mustChangePassword: false,
+        },
+      });
 
-    // Redirect to dashboard
-    router.push("/dashboard");
+      // Add a small delay to ensure session update is processed
+      setTimeout(() => {
+        // Redirect to dashboard
+        router.push("/dashboard");
+      }, 500);
+    } catch (error) {
+      console.error("Error updating session:", error);
+      // Redirect anyway in case of error
+      router.push("/dashboard");
+    }
   };
 
   if (isLoading) {

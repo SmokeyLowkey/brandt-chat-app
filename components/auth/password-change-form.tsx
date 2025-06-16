@@ -53,6 +53,8 @@ export default function PasswordChangeForm({ userId, onSuccess }: PasswordChange
         throw new Error(errorData || "Failed to change password");
       }
       
+      const data = await response.json();
+      
       toast.success("Password changed successfully");
       
       // Clear form
@@ -65,8 +67,11 @@ export default function PasswordChangeForm({ userId, onSuccess }: PasswordChange
       if (onSuccess) {
         onSuccess();
       } else {
-        // Redirect to dashboard
-        router.push("/dashboard");
+        // Add a small delay before redirecting
+        setTimeout(() => {
+          // Use redirectUrl from API response if available, otherwise fallback to dashboard
+          router.push(data.redirectUrl || "/dashboard");
+        }, 500);
       }
     } catch (error) {
       console.error("Error changing password:", error);
