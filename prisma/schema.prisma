@@ -31,16 +31,17 @@ model Tenant {
 
 // User model with NextAuth integration
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          UserRole  @default(SUPPORT_AGENT)
-  settings      Json?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  name               String?
+  email              String    @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  role               UserRole  @default(SUPPORT_AGENT)
+  mustChangePassword Boolean   @default(false)
+  settings           Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Multi-tenant relation
   tenantId String

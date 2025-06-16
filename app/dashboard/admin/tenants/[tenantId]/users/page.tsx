@@ -72,6 +72,7 @@ export default function TenantUsersPage({
     email: "",
     password: "",
     role: "SUPPORT_AGENT",
+    sendInvitation: false,
   });
 
   // Redirect if not admin
@@ -138,6 +139,7 @@ export default function TenantUsersPage({
           email: "",
           password: "",
           role: "SUPPORT_AGENT",
+          sendInvitation: false,
         });
         setIsDialogOpen(false);
         toast.success("User created successfully");
@@ -241,18 +243,44 @@ export default function TenantUsersPage({
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) =>
-                      setNewUser({ ...newUser, password: e.target.value })
-                    }
-                    placeholder="••••••••"
-                    required
-                  />
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="sendInvitation"
+                      checked={newUser.sendInvitation}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, sendInvitation: e.target.checked })
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-[#E31937] focus:ring-[#E31937]"
+                    />
+                    <Label htmlFor="sendInvitation">
+                      Send invitation email with temporary password
+                    </Label>
+                  </div>
+                  
+                  {!newUser.sendInvitation && (
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) =>
+                          setNewUser({ ...newUser, password: e.target.value })
+                        }
+                        placeholder="••••••••"
+                        required={!newUser.sendInvitation}
+                      />
+                    </div>
+                  )}
+                  
+                  {newUser.sendInvitation && (
+                    <div className="text-sm text-gray-500 italic">
+                      A temporary password will be generated and sent to the user's email.
+                      They will be required to change it on first login.
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>

@@ -53,6 +53,7 @@ export const authOptions: NextAuthOptions = {
           tenantId: user.tenantId,
           tenantName: user.tenant.name,
           tenantSlug: user.tenant.slug,
+          mustChangePassword: user.mustChangePassword,
         };
       },
     }),
@@ -65,6 +66,7 @@ export const authOptions: NextAuthOptions = {
         token.tenantId = user.tenantId;
         token.tenantName = user.tenantName;
         token.tenantSlug = user.tenantSlug;
+        token.mustChangePassword = user.mustChangePassword;
       }
       return token;
     },
@@ -75,6 +77,7 @@ export const authOptions: NextAuthOptions = {
         session.user.tenantId = token.tenantId as string;
         session.user.tenantName = token.tenantName as string;
         session.user.tenantSlug = token.tenantSlug as string;
+        session.user.mustChangePassword = token.mustChangePassword as boolean | undefined;
       }
       return session;
     },

@@ -10,7 +10,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
     pathname === "/" ||
-    pathname === "/login"
+    pathname === "/login" ||
+    pathname === "/change-password" ||
+    pathname.startsWith("/api/users") // Allow access to password change API
   ) {
     return NextResponse.next();
   }
@@ -21,6 +23,12 @@ export async function middleware(request: NextRequest) {
   if (!token) {
     const url = new URL("/login", request.url);
     url.searchParams.set("callbackUrl", encodeURI(request.url));
+    return NextResponse.redirect(url);
+  }
+
+  // Check if user needs to change password
+  if (token.mustChangePassword && pathname !== "/change-password") {
+    const url = new URL("/change-password", request.url);
     return NextResponse.redirect(url);
   }
 

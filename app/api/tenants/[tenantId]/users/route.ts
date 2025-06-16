@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { hash } from "bcryptjs";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { sendInvitationEmail, generateTemporaryPassword } from "@/utils/email";
 
 // GET /api/tenants/[tenantId]/users - List users for a tenant
 export async function GET(
@@ -63,10 +64,10 @@ export async function POST(
     }
 
     const body = await req.json();
-    const { name, email, password, role } = body;
+    const { name, email, password, role, sendInvitation } = body;
 
-    if (!name || !email || !password) {
-      return new NextResponse("Name, email, and password are required", { status: 400 });
+    if (!name || !email || (!password && !sendInvitation)) {
+      return new NextResponse("Name, email, and either password or invitation option are required", { status: 400 });
     }
 
     // Check if user with email already exists
@@ -86,8 +87,27 @@ export async function POST(
       return new NextResponse("Invalid role", { status: 400 });
     }
 
+    // Get tenant details for email
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: params.tenantId },
+      select: { name: true }
+    });
+
+    if (!tenant) {
+      return new NextResponse("Tenant not found", { status: 404 });
+    }
+
+    let userPassword = password;
+    let shouldChangePassword = false;
+
+    // If sending invitation, generate a temporary password
+    if (sendInvitation) {
+      userPassword = generateTemporaryPassword();
+      shouldChangePassword = true;
+    }
+
     // Hash password
-    const hashedPassword = await hash(password, 12);
+    const hashedPassword = await hash(userPassword, 12);
 
     // Create user
     const user = await prisma.user.create({
@@ -97,16 +117,34 @@ export async function POST(
         password: hashedPassword,
         role: role || "SUPPORT_AGENT",
         tenantId: params.tenantId,
+        mustChangePassword: shouldChangePassword,
       },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        mustChangePassword: true,
         createdAt: true,
         updatedAt: true,
       },
     });
+
+    // Send invitation email if requested
+    if (sendInvitation) {
+      try {
+        await sendInvitationEmail(
+          email,
+          name,
+          tenant.name,
+          userPassword
+        );
+      } catch (emailError) {
+        console.error("[EMAIL_SEND_ERROR]", emailError);
+        // We don't want to fail the user creation if email sending fails
+        // But we log the error and could implement a retry mechanism
+      }
+    }
 
     return NextResponse.json(user);
   } catch (error) {

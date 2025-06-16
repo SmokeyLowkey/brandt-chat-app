@@ -9,6 +9,7 @@ declare module "next-auth" {
       tenantId: string;
       tenantName: string;
       tenantSlug: string;
+      mustChangePassword?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -18,6 +19,7 @@ declare module "next-auth" {
     tenantId: string;
     tenantName: string;
     tenantSlug: string;
+    mustChangePassword?: boolean;
   }
 }
 
@@ -28,5 +30,6 @@ declare module "next-auth/jwt" {
     tenantId: string;
     tenantName: string;
     tenantSlug: string;
+    mustChangePassword?: boolean;
   }
 }
