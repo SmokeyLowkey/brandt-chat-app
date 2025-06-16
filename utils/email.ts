@@ -112,7 +112,7 @@ export const sendInvitationEmail = async (
 
   try {
     const { data, error } = await resend.emails.send({
-      from: 'Brandt Chat App <noreply@brandt-chat-app.com>',
+      from: `Brandt Chat App <noreply@${process.env.RESEND_APPROVED_DOMAIN}>`,
       to: [to],
       subject: `Welcome to ${tenantName}`,
       html: getInvitationEmailHtml(userName, tenantName, tempPassword, loginUrl),
