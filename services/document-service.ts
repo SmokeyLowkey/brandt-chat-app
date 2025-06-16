@@ -54,7 +54,7 @@ export class DocumentService {
       }
       
       const url = `/api/tenants/${tenantId}/documents?${queryParams.toString()}`
-      // console.log("DocumentService.getDocuments - Fetching from URL:", url)
+      console.log("DocumentService.getDocuments - Fetching from URL:", url)
       
       // Make API request
       const response = await fetch(
@@ -68,11 +68,13 @@ export class DocumentService {
       )
 
       if (!response.ok) {
-        throw new Error('Failed to fetch documents')
+        const errorText = await response.text();
+        console.error('Error response from API:', response.status, errorText);
+        throw new Error(`Failed to fetch documents: ${response.status} ${errorText}`);
       }
 
       const data = await response.json()
-      // console.log("DocumentService.getDocuments - Response data:", data)
+      console.log("DocumentService.getDocuments - Response data length:", data.length)
       return data
     } catch (error) {
       console.error('Error fetching documents:', error)

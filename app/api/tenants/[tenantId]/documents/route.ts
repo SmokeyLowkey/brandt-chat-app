@@ -27,7 +27,16 @@ export async function GET(
     })
 
     
+    console.log("API - User:", {
+      id: user?.id,
+      email: user?.email,
+      role: user?.role,
+      tenantId: user?.tenantId
+    })
+    console.log("API - Requested tenantId:", tenantId)
+    
     if (!user || user.tenantId !== tenantId) {
+      console.log("API - Access denied: User tenant doesn't match requested tenant")
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -63,8 +72,9 @@ export async function GET(
       },
     })
     
-    // console.log("API GET /documents - Found documents:", documents.length)
-    // console.log("API GET /documents - Document IDs:", documents.map(doc => doc.id))
+    console.log("API GET /documents - Found documents:", documents.length)
+    console.log("API GET /documents - Document IDs:", documents.map(doc => doc.id))
+    console.log("API GET /documents - First few documents:", documents.slice(0, 2))
 
     return NextResponse.json(documents)
   } catch (error) {
