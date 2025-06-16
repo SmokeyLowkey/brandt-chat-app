@@ -42,9 +42,12 @@ export default function ChangePasswordPage() {
         },
       });
       
-      console.log("Session updated, redirecting to dashboard...");
+      console.log("Session updated, setting cookie and redirecting to dashboard...");
       
-      // Add a special header to indicate we're coming from password change
+      // Set a cookie to indicate password has been changed
+      document.cookie = "password_changed=true; path=/; max-age=86400"; // 24 hours
+      
+      // Add a special parameter to indicate we're coming from password change
       const dashboardUrl = new URL("/dashboard", window.location.origin);
       dashboardUrl.searchParams.set("from", "password-change");
       
@@ -52,6 +55,10 @@ export default function ChangePasswordPage() {
       window.location.replace(dashboardUrl.toString());
     } catch (error) {
       console.error("Error updating session:", error);
+      
+      // Set cookie even in case of error
+      document.cookie = "password_changed=true; path=/; max-age=86400"; // 24 hours
+      
       // Redirect anyway in case of error
       window.location.replace("/dashboard?from=password-change-error");
     }

@@ -26,16 +26,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Check for password change cookie
+  const passwordChanged = request.cookies.get("password_changed");
+  
   // Check if user needs to change password
   // Skip the redirect in these cases:
   // 1. Already on the change-password page
-  // 2. Going to dashboard with the "from=password-change" parameter
+  // 2. Coming from a password change (either via query param or cookie)
+  // 3. Has the password_changed cookie set
   const fromPasswordChange = request.nextUrl.searchParams.get("from") === "password-change" ||
-                            request.nextUrl.searchParams.get("from") === "password-change-error";
+                           request.nextUrl.searchParams.get("from") === "password-change-error";
   
   if (token.mustChangePassword &&
+      !passwordChanged &&
       pathname !== "/change-password" &&
-      !(pathname === "/dashboard" && fromPasswordChange)) {
+      !fromPasswordChange) {
     const url = new URL("/change-password", request.url);
     return NextResponse.redirect(url);
   }

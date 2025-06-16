@@ -67,7 +67,11 @@ export default function PasswordChangeForm({ userId, onSuccess }: PasswordChange
       if (onSuccess) {
         onSuccess();
       } else {
-        console.log("Password change successful, redirecting to dashboard...");
+        console.log("Password change successful, setting cookie and redirecting to dashboard...");
+        
+        // Set a cookie to indicate password has been changed
+        document.cookie = "password_changed=true; path=/; max-age=86400"; // 24 hours
+        
         // Add a special parameter to indicate we're coming from password change
         const redirectUrl = new URL(data.redirectUrl || "/dashboard", window.location.origin);
         redirectUrl.searchParams.set("from", "password-change");
