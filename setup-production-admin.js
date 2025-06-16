@@ -8,7 +8,8 @@
  * node setup-production-admin.js
  */
 
-const { exec } = require('child_process');
+const { execSync } = require('child_process');
+const path = require('path');
 const readline = require('readline');
 
 const rl = readline.createInterface({
@@ -65,21 +66,13 @@ async function setupProductionAdmin() {
   
   console.log('\nRunning seed script with production environment...');
   
-  // Run the Prisma seed command using exec instead of spawn
-  const command = 'npx prisma db seed';
-  
-  const seedProcess = exec(command, { env }, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`\nSeed script failed: ${error.message}`);
-      rl.close();
-      return;
-    }
-    
-    if (stderr) {
-      console.error(`\nSeed script stderr: ${stderr}`);
-    }
-    
-    console.log(stdout);
+  try {
+    // Use execSync for simplicity and to avoid path issues
+    // This will run the command synchronously and print output directly
+    execSync('npx prisma db seed', {
+      env,
+      stdio: 'inherit' // This will show output directly in the console
+    });
     
     console.log('\n=== Production Admin Setup Complete ===');
     console.log('\nImportant: For actual production deployment, set these environment variables in your hosting platform:');
@@ -92,21 +85,10 @@ async function setupProductionAdmin() {
     console.log(`- SEED_ROOT_ADMIN_PASSWORD="[your-secure-password]"`);
     
     console.log('\nFor Vercel deployment, add these to your project environment variables.');
-    
+  } catch (error) {
+    console.error(`\nSeed script failed: ${error.message}`);
+  } finally {
     rl.close();
-  });
-  
-  // Display output in real-time
-  if (seedProcess.stdout) {
-    seedProcess.stdout.on('data', (data) => {
-      process.stdout.write(data);
-    });
-  }
-  
-  if (seedProcess.stderr) {
-    seedProcess.stderr.on('data', (data) => {
-      process.stderr.write(data);
-    });
   }
 }
 

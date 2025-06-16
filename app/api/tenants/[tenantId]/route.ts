@@ -10,19 +10,20 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const tenantId = params.tenantId;
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Only admins or users from the same tenant can access tenant details
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== params.tenantId) {
+    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
       return new NextResponse("Forbidden", { status: 403 });
     }
 
     const tenant = await prisma.tenant.findUnique({
       where: {
-        id: params.tenantId,
+        id: tenantId,
       },
       include: {
         _count: {
@@ -53,6 +54,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const tenantId = params.tenantId;
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -61,7 +63,7 @@ export async function PATCH(
     // Only admins or tenant admins can update tenant details
     if (
       session.user.role !== "ADMIN" &&
-      (session.user.tenantId !== params.tenantId || session.user.role !== "ADMIN")
+      (session.user.tenantId !== tenantId || session.user.role !== "ADMIN")
     ) {
       return new NextResponse("Forbidden", { status: 403 });
     }
@@ -76,7 +78,7 @@ export async function PATCH(
 
     const tenant = await prisma.tenant.update({
       where: {
-        id: params.tenantId,
+        id: tenantId,
       },
       data: updateData,
     });
@@ -95,6 +97,7 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const tenantId = params.tenantId;
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -107,7 +110,7 @@ export async function DELETE(
 
     await prisma.tenant.delete({
       where: {
-        id: params.tenantId,
+        id: tenantId,
       },
     });
 

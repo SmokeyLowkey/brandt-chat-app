@@ -11,13 +11,14 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const userId = params.userId;
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Users can only change their own password unless they are an admin
-    if (session.user.id !== params.userId && session.user.role !== "ADMIN") {
+    if (session.user.id !== userId && session.user.role !== "ADMIN") {
       return new NextResponse("Forbidden", { status: 403 });
     }
 
@@ -31,7 +32,7 @@ export async function POST(
     // Get the user
     const user = await prisma.user.findUnique({
       where: {
-        id: params.userId,
+        id: userId,
       },
     });
 
@@ -45,7 +46,7 @@ export async function POST(
     // Update the user's password and reset the mustChangePassword flag
     await prisma.user.update({
       where: {
-        id: params.userId,
+        id: userId,
       },
       data: {
         password: hashedPassword,

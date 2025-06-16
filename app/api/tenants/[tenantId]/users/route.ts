@@ -12,19 +12,20 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const tenantId = params.tenantId;
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     // Only admins or users from the same tenant can list users
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== params.tenantId) {
+    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
       return new NextResponse("Forbidden", { status: 403 });
     }
 
     const users = await prisma.user.findMany({
       where: {
-        tenantId: params.tenantId,
+        tenantId: tenantId,
       },
       select: {
         id: true,
@@ -50,6 +51,7 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
+    const tenantId = params.tenantId;
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -58,7 +60,7 @@ export async function POST(
     // Only admins or tenant admins can create users
     if (
       session.user.role !== "ADMIN" &&
-      (session.user.tenantId !== params.tenantId || session.user.role !== "ADMIN")
+      (session.user.tenantId !== tenantId || session.user.role !== "ADMIN")
     ) {
       return new NextResponse("Forbidden", { status: 403 });
     }
@@ -89,7 +91,7 @@ export async function POST(
 
     // Get tenant details for email
     const tenant = await prisma.tenant.findUnique({
-      where: { id: params.tenantId },
+      where: { id: tenantId },
       select: { name: true }
     });
 
@@ -116,7 +118,7 @@ export async function POST(
         email,
         password: hashedPassword,
         role: role || "SUPPORT_AGENT",
-        tenantId: params.tenantId,
+        tenantId: tenantId,
         mustChangePassword: shouldChangePassword,
       },
       select: {
