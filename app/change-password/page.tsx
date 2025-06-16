@@ -31,6 +31,8 @@ export default function ChangePasswordPage() {
 
   const handlePasswordChangeSuccess = async () => {
     try {
+      console.log("Password change successful, updating session...");
+      
       // Update the session to reflect that the password has been changed
       await update({
         ...session,
@@ -39,16 +41,19 @@ export default function ChangePasswordPage() {
           mustChangePassword: false,
         },
       });
-
-      // Add a small delay to ensure session update is processed
-      setTimeout(() => {
-        // Redirect to dashboard
-        router.push("/dashboard");
-      }, 500);
+      
+      console.log("Session updated, redirecting to dashboard...");
+      
+      // Add a special header to indicate we're coming from password change
+      const dashboardUrl = new URL("/dashboard", window.location.origin);
+      dashboardUrl.searchParams.set("from", "password-change");
+      
+      // Force redirect to dashboard with replace to prevent back navigation
+      window.location.replace(dashboardUrl.toString());
     } catch (error) {
       console.error("Error updating session:", error);
       // Redirect anyway in case of error
-      router.push("/dashboard");
+      window.location.replace("/dashboard?from=password-change-error");
     }
   };
 

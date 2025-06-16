@@ -6,11 +6,13 @@ import { prisma } from "@/lib/prisma";
 // GET /api/tenants/[tenantId] - Get a specific tenant
 export async function GET(
   req: Request,
-  { params }: { params: { tenantId: string } }
+  context: { params: { tenantId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Access params inside async context
+    const params = await context.params;
     const tenantId = params.tenantId;
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -50,11 +52,13 @@ export async function GET(
 // PATCH /api/tenants/[tenantId] - Update a tenant
 export async function PATCH(
   req: Request,
-  { params }: { params: { tenantId: string } }
+  context: { params: { tenantId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Access params inside async context
+    const params = await context.params;
     const tenantId = params.tenantId;
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -93,11 +97,13 @@ export async function PATCH(
 // DELETE /api/tenants/[tenantId] - Delete a tenant
 export async function DELETE(
   req: Request,
-  { params }: { params: { tenantId: string } }
+  context: { params: { tenantId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Access params inside async context
+    const params = await context.params;
     const tenantId = params.tenantId;
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });

@@ -67,11 +67,13 @@ export default function PasswordChangeForm({ userId, onSuccess }: PasswordChange
       if (onSuccess) {
         onSuccess();
       } else {
-        // Add a small delay before redirecting
-        setTimeout(() => {
-          // Use redirectUrl from API response if available, otherwise fallback to dashboard
-          router.push(data.redirectUrl || "/dashboard");
-        }, 500);
+        console.log("Password change successful, redirecting to dashboard...");
+        // Add a special parameter to indicate we're coming from password change
+        const redirectUrl = new URL(data.redirectUrl || "/dashboard", window.location.origin);
+        redirectUrl.searchParams.set("from", "password-change");
+        
+        // Force redirect using window.location.replace for more reliable navigation
+        window.location.replace(redirectUrl.toString());
       }
     } catch (error) {
       console.error("Error changing password:", error);

@@ -8,11 +8,13 @@ import { sendInvitationEmail, generateTemporaryPassword } from "@/utils/email";
 // GET /api/tenants/[tenantId]/users - List users for a tenant
 export async function GET(
   req: Request,
-  { params }: { params: { tenantId: string } }
+  context: { params: { tenantId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Access params inside async context
+    const params = await context.params;
     const tenantId = params.tenantId;
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -47,11 +49,13 @@ export async function GET(
 // POST /api/tenants/[tenantId]/users - Create a new user for a tenant
 export async function POST(
   req: Request,
-  { params }: { params: { tenantId: string } }
+  context: { params: { tenantId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Access params inside async context
+    const params = await context.params;
     const tenantId = params.tenantId;
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });

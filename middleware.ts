@@ -27,7 +27,15 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check if user needs to change password
-  if (token.mustChangePassword && pathname !== "/change-password") {
+  // Skip the redirect in these cases:
+  // 1. Already on the change-password page
+  // 2. Going to dashboard with the "from=password-change" parameter
+  const fromPasswordChange = request.nextUrl.searchParams.get("from") === "password-change" ||
+                            request.nextUrl.searchParams.get("from") === "password-change-error";
+  
+  if (token.mustChangePassword &&
+      pathname !== "/change-password" &&
+      !(pathname === "/dashboard" && fromPasswordChange)) {
     const url = new URL("/change-password", request.url);
     return NextResponse.redirect(url);
   }

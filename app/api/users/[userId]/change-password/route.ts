@@ -7,11 +7,13 @@ import { prisma } from "@/lib/prisma";
 // POST /api/users/[userId]/change-password - Change a user's password
 export async function POST(
   req: Request,
-  { params }: { params: { userId: string } }
+  context: { params: { userId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Access params inside async context
+    const params = await context.params;
     const userId = params.userId;
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return new NextResponse("Unauthorized", { status: 401 });
