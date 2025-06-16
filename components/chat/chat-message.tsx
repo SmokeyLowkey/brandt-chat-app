@@ -30,18 +30,18 @@ export default function ChatMessage({
         "flex",
         isUser ? "justify-end" : "justify-start",
         isFirstInGroup ? "mt-6" : "mt-1",
-        isLastInGroup ? "mb-2" : "mb-0"
+        isLastInGroup ? "mb-3" : "mb-0.5"
       )}
     >
-      <div className={cn("flex max-w-[80%]", isUser ? "flex-row-reverse" : "", "group")}>
+      <div className={cn("flex max-w-[85%]", isUser ? "flex-row-reverse" : "", "group")}>
         {/* Only show avatar for first message in a group */}
         {isFirstInGroup && (
           <div
             className={cn(
-              "flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center",
+              "flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
               isUser
-                ? "bg-gradient-to-br from-gray-800 to-black text-white shadow-md ml-2"
-                : "bg-gradient-to-br from-[#E31937] to-[#c01730] text-white shadow-md mr-2"
+                ? "bg-gradient-to-br from-gray-800 to-black text-white shadow-md ml-3"
+                : "bg-gradient-to-br from-[#E31937] to-[#c01730] text-white shadow-md mr-3"
             )}
           >
             {isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
@@ -50,16 +50,16 @@ export default function ChatMessage({
 
         {/* Spacer div to align consecutive messages */}
         {!isFirstInGroup && (
-          <div className={cn("flex-shrink-0 w-9", isUser ? "ml-2" : "mr-2")}></div>
+          <div className={cn("flex-shrink-0 w-10", isUser ? "ml-3" : "mr-3")}></div>
         )}
 
         <div className="max-w-full">
           <div
             className={cn(
-              "p-3.5 rounded-2xl shadow-sm transition-all",
+              "p-4 rounded-2xl shadow-sm transition-all",
               isUser
                 ? "bg-gradient-to-r from-[#E31937] to-[#c01730] text-white"
-                : "bg-white border border-gray-100 hover:border-gray-200",
+                : "bg-white border border-gray-200 hover:border-gray-300",
               isFirstInGroup && !isUser ? "rounded-tl-sm" : "",
               isFirstInGroup && isUser ? "rounded-tr-sm" : ""
             )}
@@ -175,7 +175,7 @@ export default function ChatMessage({
           {isLastInGroup && (
             <div
               className={cn(
-                "text-xs text-gray-400 mt-1",
+                "text-xs text-gray-400 mt-1.5",
                 isUser ? "text-right mr-1" : "ml-1",
                 "opacity-0 group-hover:opacity-100 transition-opacity"
               )}

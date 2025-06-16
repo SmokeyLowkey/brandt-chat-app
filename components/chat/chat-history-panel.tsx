@@ -77,18 +77,18 @@ export default function ChatHistoryPanel({
   };
 
   return (
-    <div className="w-64 h-full border-r flex flex-col bg-gray-50 shadow-sm">
+    <div className="w-72 h-full border-r flex flex-col bg-gray-50 shadow-md">
       <div className="p-4 border-b bg-white">
         <Button
           onClick={onNewConversation}
-          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#E31937] to-[#c01730] hover:from-[#c01730] hover:to-[#a01328] text-white shadow-sm transition-all"
+          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-[#E31937] to-[#c01730] hover:from-[#c01730] hover:to-[#a01328] text-white shadow-md transition-all py-5 rounded-lg"
         >
-          <PlusCircle className="h-4 w-4" />
+          <PlusCircle className="h-5 w-5" />
           New Chat
         </Button>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-4">
         {isLoading ? (
           <div className="flex items-center justify-center h-24">
             <div className="flex flex-col items-center">
@@ -107,22 +107,22 @@ export default function ChatHistoryPanel({
             <div
               key={conversation.id}
               className={cn(
-                "group flex items-center justify-between p-3 rounded-lg mb-1.5 cursor-pointer transition-all",
+                "group flex items-center justify-between p-3.5 rounded-xl mb-2 cursor-pointer transition-all",
                 selectedConversationId === conversation.id
-                  ? "bg-gradient-to-r from-[#E31937] to-[#c01730] text-white shadow-sm"
+                  ? "bg-gradient-to-r from-[#E31937] to-[#c01730] text-white shadow-md"
                   : "hover:bg-gray-100"
               )}
               onClick={() => onSelectConversation(conversation.id)}
             >
-              <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="flex items-center gap-3 overflow-hidden">
                 <div className={cn(
-                  "flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center",
+                  "flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center",
                   selectedConversationId === conversation.id
                     ? "bg-white bg-opacity-20"
                     : "bg-gray-200"
                 )}>
                   <MessageSquare className={cn(
-                    "h-4 w-4 flex-shrink-0",
+                    "h-4.5 w-4.5 flex-shrink-0",
                     selectedConversationId === conversation.id
                       ? "text-white"
                       : "text-gray-600"
@@ -146,7 +146,7 @@ export default function ChatHistoryPanel({
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-7 w-7 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
+                  "h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity",
                   selectedConversationId === conversation.id
                     ? "hover:bg-white hover:bg-opacity-20 text-white"
                     : "hover:bg-gray-200 text-gray-500"
@@ -156,7 +156,7 @@ export default function ChatHistoryPanel({
                   onDeleteConversation(conversation.id);
                 }}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))
