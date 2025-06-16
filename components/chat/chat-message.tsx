@@ -65,109 +65,225 @@ export default function ChatMessage({
             )}
           >
             {/* Format message content with markdown-like styling */}
-            <div className="prose prose-sm max-w-none">
-              {content.split('\n').map((paragraph, i) => {
-                // Handle code blocks
-                if (paragraph.startsWith('```') && paragraph.endsWith('```')) {
-                  return (
-                    <pre key={i} className={cn(
-                      "text-sm rounded bg-gray-100 p-2 overflow-x-auto",
+            <div className={cn(
+              "prose max-w-none",
+              isUser ? "prose-invert" : "",
+              "text-base leading-relaxed"
+            )}>
+              {/* Process the content as a whole to better handle multi-line lists */}
+              {(() => {
+                // Split content into lines
+                const lines = content.split('\n');
+                const formattedContent = [];
+                let currentList = null;
+                let currentListType = null;
+                let currentCodeBlock = null;
+                let inCodeBlock = false;
+
+                // Process each line
+                for (let i = 0; i < lines.length; i++) {
+                  const line = lines[i];
+                  
+                  // Handle code blocks
+                  if (line.startsWith('```')) {
+                    if (inCodeBlock) {
+                      // End of code block
+                      formattedContent.push(
+                        <pre key={`code-${i}`} className={cn(
+                          "text-sm rounded-md bg-gray-100 p-3 overflow-x-auto my-3",
+                          isUser ? "bg-opacity-20" : ""
+                        )}>
+                          <code>{currentCodeBlock}</code>
+                        </pre>
+                      );
+                      inCodeBlock = false;
+                      currentCodeBlock = null;
+                    } else {
+                      // Start of code block
+                      inCodeBlock = true;
+                      currentCodeBlock = '';
+                    }
+                    continue;
+                  }
+
+                  if (inCodeBlock) {
+                    currentCodeBlock += line + '\n';
+                    continue;
+                  }
+
+                  // Handle bullet lists (starting with "- " or "• ")
+                  if (line.match(/^[\s]*[-•]\s/)) {
+                    const content = line.replace(/^[\s]*[-•]\s/, '');
+                    
+                    if (currentListType !== 'bullet') {
+                      // Start a new bullet list
+                      if (currentList) {
+                        // Push the previous list if it exists
+                        formattedContent.push(currentList);
+                      }
+                      currentList = [<li key={`bullet-${i}`} className="mb-1">{content}</li>];
+                      currentListType = 'bullet';
+                    } else {
+                      // Add to existing bullet list
+                      if (currentList) {
+                        currentList.push(<li key={`bullet-${i}`} className="mb-1">{content}</li>);
+                      }
+                    }
+                    continue;
+                  }
+
+                  // Handle numbered lists (starting with "1. ", "2. ", etc.)
+                  if (line.match(/^[\s]*\d+\.\s/)) {
+                    const content = line.replace(/^[\s]*\d+\.\s/, '');
+                    
+                    if (currentListType !== 'number') {
+                      // Start a new numbered list
+                      if (currentList) {
+                        // Push the previous list if it exists
+                        formattedContent.push(currentList);
+                      }
+                      currentList = [<li key={`number-${i}`} className="mb-1">{content}</li>];
+                      currentListType = 'number';
+                    } else {
+                      // Add to existing numbered list
+                      if (currentList) {
+                        currentList.push(<li key={`number-${i}`} className="mb-1">{content}</li>);
+                      }
+                    }
+                    continue;
+                  }
+
+                  // If we reach here, we're not in a list anymore
+                  if (currentList) {
+                    // Push the current list before moving on
+                    if (currentListType === 'bullet') {
+                      formattedContent.push(
+                        <ul key={`ul-${i}`} className="list-disc pl-5 mb-3 mt-2 space-y-1">
+                          {currentList}
+                        </ul>
+                      );
+                    } else if (currentListType === 'number') {
+                      formattedContent.push(
+                        <ol key={`ol-${i}`} className="list-decimal pl-5 mb-3 mt-2 space-y-1">
+                          {currentList}
+                        </ol>
+                      );
+                    }
+                    currentList = null;
+                    currentListType = null;
+                  }
+
+                  // Handle empty lines as paragraph breaks
+                  if (line.trim() === '') {
+                    formattedContent.push(<div key={`br-${i}`} className="h-2"></div>);
+                    continue;
+                  }
+
+                  // Handle regular paragraphs with inline formatting
+                  const parts = line.split('`');
+                  if (parts.length > 1) {
+                    // Has inline code
+                    formattedContent.push(
+                      <p key={`p-${i}`} className="mb-2">
+                        {parts.map((part, j) => {
+                          if (j % 2 === 0) {
+                            // Process links in text parts
+                            return part.split(/(https?:\/\/[^\s]+)/).map((text, k) => {
+                              if (text.match(/^https?:\/\//)) {
+                                return (
+                                  <a
+                                    key={k}
+                                    href={text}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={cn(
+                                      "underline",
+                                      isUser ? "text-blue-100" : "text-blue-600"
+                                    )}
+                                  >
+                                    {text}
+                                  </a>
+                                );
+                              }
+                              return text;
+                            });
+                          } else {
+                            return (
+                              <code
+                                key={j}
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded font-mono text-sm",
+                                  isUser
+                                    ? "bg-white bg-opacity-20"
+                                    : "bg-gray-100"
+                                )}
+                              >
+                                {part}
+                              </code>
+                            );
+                          }
+                        })}
+                      </p>
+                    );
+                  } else {
+                    // Regular paragraph
+                    formattedContent.push(
+                      <p key={`p-${i}`} className="mb-2">
+                        {line.split(/(https?:\/\/[^\s]+)/).map((text, j) => {
+                          if (text.match(/^https?:\/\//)) {
+                            return (
+                              <a
+                                key={j}
+                                href={text}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={cn(
+                                  "underline",
+                                  isUser ? "text-blue-100" : "text-blue-600"
+                                )}
+                              >
+                                {text}
+                              </a>
+                            );
+                          }
+                          return text;
+                        })}
+                      </p>
+                    );
+                  }
+                }
+
+                // Don't forget to add the last list if there is one
+                if (currentList) {
+                  if (currentListType === 'bullet') {
+                    formattedContent.push(
+                      <ul key="ul-last" className="list-disc pl-5 mb-3 mt-2 space-y-1">
+                        {currentList}
+                      </ul>
+                    );
+                  } else if (currentListType === 'number') {
+                    formattedContent.push(
+                      <ol key="ol-last" className="list-decimal pl-5 mb-3 mt-2 space-y-1">
+                        {currentList}
+                      </ol>
+                    );
+                  }
+                }
+
+                // If we're still in a code block at the end, add it
+                if (inCodeBlock && currentCodeBlock) {
+                  formattedContent.push(
+                    <pre key="code-last" className={cn(
+                      "text-sm rounded-md bg-gray-100 p-3 overflow-x-auto my-3",
                       isUser ? "bg-opacity-20" : ""
                     )}>
-                      <code>{paragraph.slice(3, -3)}</code>
+                      <code>{currentCodeBlock}</code>
                     </pre>
                   );
                 }
 
-                // Handle inline code
-                const parts = paragraph.split('`');
-                if (parts.length > 1) {
-                  return (
-                    <p key={i} className="mb-2 last:mb-0">
-                      {parts.map((part, j) => {
-                        if (j % 2 === 0) {
-                          // Process links in text parts
-                          return part.split(/(https?:\/\/[^\s]+)/).map((text, k) => {
-                            if (text.match(/^https?:\/\//)) {
-                              return (
-                                <a
-                                  key={k}
-                                  href={text}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={cn(
-                                    "underline",
-                                    isUser ? "text-blue-100" : "text-blue-600"
-                                  )}
-                                >
-                                  {text}
-                                </a>
-                              );
-                            }
-                            return text;
-                          });
-                        } else {
-                          return (
-                            <code
-                              key={j}
-                              className={cn(
-                                "px-1.5 py-0.5 rounded",
-                                isUser
-                                  ? "bg-white bg-opacity-20"
-                                  : "bg-gray-100"
-                              )}
-                            >
-                              {part}
-                            </code>
-                          );
-                        }
-                      })}
-                    </p>
-                  );
-                }
-
-                // Handle lists
-                if (paragraph.startsWith('- ')) {
-                  return (
-                    <ul key={i} className="list-disc pl-5 mb-2 last:mb-0">
-                      <li>{paragraph.substring(2)}</li>
-                    </ul>
-                  );
-                }
-
-                if (/^\d+\.\s/.test(paragraph)) {
-                  return (
-                    <ol key={i} className="list-decimal pl-5 mb-2 last:mb-0">
-                      <li>{paragraph.replace(/^\d+\.\s/, '')}</li>
-                    </ol>
-                  );
-                }
-
-                // Process links in regular paragraphs
-                return (
-                  <p key={i} className="mb-2 last:mb-0">
-                    {paragraph.split(/(https?:\/\/[^\s]+)/).map((text, j) => {
-                      if (text.match(/^https?:\/\//)) {
-                        return (
-                          <a
-                            key={j}
-                            href={text}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn(
-                              "underline",
-                              isUser ? "text-blue-100" : "text-blue-600"
-                            )}
-                          >
-                            {text}
-                          </a>
-                        );
-                      }
-                      return text;
-                    })}
-                  </p>
-                );
-              })}
+                return formattedContent;
+              })()}
             </div>
           </div>
 
