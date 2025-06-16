@@ -107,7 +107,7 @@ export const sendInvitationEmail = async (
   tenantName: string,
   tempPassword: string
 ) => {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const loginUrl = `${appUrl}/login`;
 
   try {
