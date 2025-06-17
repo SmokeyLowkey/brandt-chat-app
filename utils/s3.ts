@@ -58,6 +58,9 @@ export async function getDownloadUrl(key: string): Promise<string> {
   }
 }
 
+// Track active upload requests so they can be cancelled
+const activeUploads: Map<string, XMLHttpRequest> = new Map();
+
 /**
  * Upload a file to S3 using a pre-signed URL
  */
@@ -77,30 +80,78 @@ export async function uploadFileToS3(
     if (!isPdf) {
       throw new Error('Only PDF files are supported');
     }
+    
     // Step 1: Get the pre-signed URL
     const { uploadUrl, key, fileUrl } = await getUploadUrl(file.name, file.type);
 
-    // Step 2: Upload the file directly to S3
-    const response = await fetch(uploadUrl, {
-      method: 'PUT',
-      body: file,
-      headers: {
-        'Content-Type': file.type,
-      },
+    // Step 2: Upload the file with progress tracking
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      // Store the XHR request so it can be cancelled
+      activeUploads.set(key, xhr);
+      
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const percentComplete = Math.round((event.loaded / event.total) * 100);
+          onProgress(percentComplete);
+        }
+      });
+      
+      // Handle completion
+      xhr.addEventListener('load', () => {
+        // Remove from active uploads
+        activeUploads.delete(key);
+        
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({ key, url: fileUrl });
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+      
+      // Handle errors
+      xhr.addEventListener('error', () => {
+        activeUploads.delete(key);
+        reject(new Error('Network error occurred during upload'));
+      });
+      
+      // Handle abort
+      xhr.addEventListener('abort', () => {
+        activeUploads.delete(key);
+        reject(new Error('Upload was cancelled'));
+      });
+      
+      // Set timeout to 5 minutes
+      xhr.timeout = 5 * 60 * 1000;
+      xhr.addEventListener('timeout', () => {
+        activeUploads.delete(key);
+        reject(new Error('Upload timed out'));
+      });
+      
+      // Send the request
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.send(file);
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to upload file to S3');
-    }
-
-    return {
-      key,
-      url: fileUrl,
-    };
   } catch (error) {
     console.error('Error uploading file to S3:', error);
     throw error;
   }
+}
+
+/**
+ * Cancel an active upload by S3 key
+ */
+export function cancelUpload(key: string): boolean {
+  const xhr = activeUploads.get(key);
+  if (xhr) {
+    xhr.abort();
+    activeUploads.delete(key);
+    return true;
+  }
+  return false;
 }
 
 /**

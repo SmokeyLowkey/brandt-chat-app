@@ -4,12 +4,13 @@ import { useState, useRef, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTenant } from "@/providers/tenant-provider";
+import { useUploads } from "@/providers/upload-provider";
 import { toast } from "sonner";
-import { FileText, Upload, CheckCircle, X, Loader2 } from "lucide-react";
+import { FileText, Upload, CheckCircle, X, Loader2, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { uploadFileToS3 } from "@/utils/s3";
+import { uploadFileToS3, cancelUpload as cancelS3Upload } from "@/utils/s3";
 import { DocumentService } from "@/services/document-service";
 
 interface FileUploaderProps {
@@ -20,6 +21,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const { tenantId, isAdmin } = useTenant();
+  const { addUpload, updateUpload, cancelUpload } = useUploads();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -27,6 +29,8 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const [uploadComplete, setUploadComplete] = useState(false);
   const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const [totalFiles, setTotalFiles] = useState(0);
+  const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
+  const [currentS3Key, setCurrentS3Key] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -64,30 +68,49 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
 
   const uploadFile = async (file: File): Promise<string | null> => {
     try {
-      // Update progress for this file
+      // Create an upload entry in the global manager
+      const uploadId = addUpload({
+        fileName: file.name,
+        status: 'uploading',
+        progress: 0,
+        tenantId: tenantId!,
+      });
+      
+      // Store the current upload ID so it can be cancelled
+      setCurrentUploadId(uploadId);
+      
+      // Initialize progress for this file
       setUploadProgress(prev => ({
         ...prev,
         [file.name]: 0
       }));
       
-      // Simulate progress updates for this file
-      const progressInterval = setInterval(() => {
+      // Update global upload progress
+      updateUpload(uploadId, { progress: 0 });
+
+      // Upload file to S3 with progress tracking
+      const { key, url } = await uploadFileToS3(file, (progress) => {
+        // Update progress based on actual upload progress
         setUploadProgress(prev => ({
           ...prev,
-          [file.name]: Math.min(prev[file.name] + 5, 95)
+          [file.name]: progress
         }));
-      }, 200);
-
-      // Upload file to S3
-      const { key, url } = await uploadFileToS3(file);
+        
+        // Update global upload progress
+        updateUpload(uploadId, { progress });
+      });
       
-      clearInterval(progressInterval);
+      // Store the S3 key for potential cancellation
+      setCurrentS3Key(key);
+      
+      // Set final progress to 100%
       setUploadProgress(prev => ({
         ...prev,
         [file.name]: 100
       }));
-
-      // console.log(`File ${file.name} uploaded to S3:`, { key, url });
+      
+      // Update global upload progress to 100%
+      updateUpload(uploadId, { progress: 100 });
 
       // Notify the server about the uploaded document
       const documentResponse = await fetch('/api/s3/document-created', {
@@ -111,7 +134,12 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
       }
 
       const document = await documentResponse.json();
-      // console.log(`Document created for ${file.name}:`, document);
+      
+      // Update global upload status to processing
+      updateUpload(uploadId, { 
+        status: 'processing',
+        documentId: document.documentId
+      });
       
       // Return the document ID
       return document.documentId || null;
@@ -191,7 +219,6 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           
           // Call the callback with the first document ID if provided
           if (i === 0 && onUploadComplete) {
-            // console.log("Calling onUploadComplete with documentId:", documentId);
             onUploadComplete(documentId);
           }
         }
@@ -219,13 +246,9 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
       }
       
       setIsUploading(false);
+      setCurrentUploadId(null);
+      setCurrentS3Key(null);
       clearSelectedFiles();
-      
-      // Force a complete window refresh after a short delay
-      setTimeout(() => {
-        // console.log("Performing full window refresh to update document list");
-        window.location.reload();
-      }, 2000);
       
       // Reset upload complete status after a delay
       setTimeout(() => {
@@ -235,6 +258,8 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
       console.error("Upload error:", error);
       
       setIsUploading(false);
+      setCurrentUploadId(null);
+      setCurrentS3Key(null);
       
       // Show a more detailed error message
       toast.error(
@@ -262,6 +287,35 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
     const validProgressCount = Object.values(uploadProgress).filter(p => p >= 0).length;
     return validProgressCount > 0 ? totalProgress / validProgressCount : 0;
   };
+  
+  // Handle cancelling the current upload
+  const handleCancelUpload = () => {
+    if (currentUploadId) {
+      // Cancel the upload in the provider
+      cancelUpload(currentUploadId);
+      
+      // Cancel the S3 upload if we have a key
+      if (currentS3Key) {
+        cancelS3Upload(currentS3Key);
+      }
+      
+      // Reset state
+      setIsUploading(false);
+      setCurrentUploadId(null);
+      setCurrentS3Key(null);
+      clearSelectedFiles();
+      
+      toast.info(
+        <div className="flex flex-col gap-1">
+          <p className="font-medium">Upload cancelled</p>
+          <p className="text-sm">The document upload was cancelled.</p>
+        </div>,
+        {
+          duration: 3000,
+        }
+      );
+    }
+  };
 
   return (
     <Card className="border-2 border-dashed rounded-lg">
@@ -279,7 +333,18 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
 
           {isUploading ? (
             <div className="w-full max-w-xs">
-              <Progress value={calculateOverallProgress()} className="h-2 w-full" />
+              <div className="flex items-center justify-between mb-1">
+                <Progress value={calculateOverallProgress()} className="h-2 w-full mr-2" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0"
+                  onClick={handleCancelUpload}
+                  title="Cancel upload"
+                >
+                  <XCircle className="h-4 w-4 text-gray-500 hover:text-red-500" />
+                </Button>
+              </div>
               <p className="text-sm text-gray-500 mt-2">
                 Uploading file {currentFileIndex + 1} of {totalFiles} ({Math.round(calculateOverallProgress())}%)
               </p>
