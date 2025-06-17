@@ -69,6 +69,14 @@ export async function uploadFileToS3(
   url: string;
 }> {
   try {
+    // Check if the file is a PDF
+    const isPdf =
+      file.type.includes('pdf') ||
+      file.name.toLowerCase().endsWith('.pdf');
+
+    if (!isPdf) {
+      throw new Error('Only PDF files are supported');
+    }
     // Step 1: Get the pre-signed URL
     const { uploadUrl, key, fileUrl } = await getUploadUrl(file.name, file.type);
 

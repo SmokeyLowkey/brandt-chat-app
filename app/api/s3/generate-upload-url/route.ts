@@ -37,6 +37,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if the file is a PDF
+    const isPdf =
+      contentType?.includes('pdf') ||
+      filename.toLowerCase().endsWith('.pdf');
+
+    if (!isPdf) {
+      return NextResponse.json(
+        { error: "Only PDF files are supported" },
+        { status: 400 }
+      );
+    }
+
     // Generate a unique file key while preserving the original filename
     const uuid = randomUUID();
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');

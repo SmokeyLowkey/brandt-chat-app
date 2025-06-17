@@ -3,6 +3,7 @@
 import { useState, useRef, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useTenant } from "@/providers/tenant-provider";
 import { toast } from "sonner";
 import { FileText, Upload, CheckCircle, X, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ interface FileUploaderProps {
 export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const router = useRouter();
   const { data: session } = useSession();
+  const { tenantId, isAdmin } = useTenant();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -99,6 +101,8 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           name: file.name,
           size: file.size,
           type: file.type,
+          // Pass the override tenant ID for admins
+          overrideTenantId: isAdmin ? tenantId : undefined,
         }),
       });
 
@@ -136,8 +140,34 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   };
 
   const handleUpload = async () => {
-    if (selectedFiles.length === 0 || !session?.user?.tenantId) {
+    if (selectedFiles.length === 0 || !tenantId) {
       toast.error("Please select files to upload");
+      return;
+    }
+
+    // Check if all files are PDFs
+    const nonPdfFiles = selectedFiles.filter(file =>
+      !file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')
+    );
+
+    if (nonPdfFiles.length > 0) {
+      toast.error(
+        <div className="flex flex-col gap-1">
+          <p className="font-medium">Invalid file format</p>
+          <p className="text-sm">Only PDF files are supported.</p>
+          {nonPdfFiles.length > 0 && (
+            <ul className="text-xs mt-1 list-disc pl-4">
+              {nonPdfFiles.slice(0, 3).map((file, index) => (
+                <li key={index}>{file.name}</li>
+              ))}
+              {nonPdfFiles.length > 3 && <li>...and {nonPdfFiles.length - 3} more</li>}
+            </ul>
+          )}
+        </div>,
+        {
+          duration: 5000,
+        }
+      );
       return;
     }
 
@@ -243,7 +273,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           <div>
             <p className="font-medium">Upload documents</p>
             <p className="text-sm text-gray-500 mt-1">
-              Supported formats: PDF, DOCX, TXT, XLSX (up to 16MB)
+              Supported formats: PDF only (up to 16MB)
             </p>
           </div>
 
@@ -280,7 +310,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 className="hidden"
-                accept=".pdf,.docx,.txt,.xlsx"
+                accept=".pdf"
                 multiple
               />
               

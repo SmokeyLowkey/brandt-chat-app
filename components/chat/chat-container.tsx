@@ -37,6 +37,13 @@ export default function ChatContainer() {
     scrollToBottom();
   }, [messages]);
 
+  // Reset chat state when tenant changes
+  useEffect(() => {
+    // Reset to initial state when tenant changes
+    createNewConversation();
+    setSelectedConversationId(null);
+  }, [tenantId]);
+
   // Load conversation
   const loadConversation = async (conversationId: string) => {
     if (!session || !tenantId) return;

@@ -72,7 +72,7 @@ export default function TenantUsersPage({
     email: "",
     password: "",
     role: "SUPPORT_AGENT",
-    sendInvitation: false,
+    sendInvitation: true,
   });
 
   // Redirect if not admin
@@ -139,7 +139,7 @@ export default function TenantUsersPage({
           email: "",
           password: "",
           role: "SUPPORT_AGENT",
-          sendInvitation: false,
+          sendInvitation: true,
         });
         setIsDialogOpen(false);
         toast.success("User created successfully");

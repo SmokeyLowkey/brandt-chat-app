@@ -15,15 +15,33 @@ export async function POST(request: NextRequest) {
 
     // Parse the request body
     const body = await request.json();
-    const { key, url, name, size, type } = body;
+    const { key, url, name, size, type, overrideTenantId } = body;
     
-    // Get tenant ID from session
-    const tenantId = session.user.tenantId;
+    // Get tenant ID from session or use override for admins
+    let tenantId = session.user.tenantId;
     const userId = session.user.id;
+    
+    // Allow admins to override the tenant ID
+    if (session.user.role === "ADMIN" && overrideTenantId) {
+      console.log(`Admin ${userId} overriding tenant ID to ${overrideTenantId}`);
+      tenantId = overrideTenantId;
+    }
 
     if (!tenantId || !key || !url || !name) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Check if the file is a PDF
+    const isPdf =
+      type.includes('pdf') ||
+      name.toLowerCase().endsWith('.pdf');
+
+    if (!isPdf) {
+      return NextResponse.json(
+        { error: "Only PDF files are supported" },
         { status: 400 }
       );
     }
