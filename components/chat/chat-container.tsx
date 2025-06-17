@@ -274,7 +274,7 @@ export default function ChatContainer() {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full max-h-screen">
       <ChatHistoryPanel
         selectedConversationId={selectedConversationId}
         onSelectConversation={loadConversation}
@@ -282,16 +282,16 @@ export default function ChatContainer() {
         onDeleteConversation={deleteConversation}
       />
       
-      <div className="flex flex-col flex-1 h-full">
-        <div className="px-4 py-3 mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">Chat with Brandt AI</h1>
-          <p className="text-gray-500">Ask questions about products, orders, or company information</p>
+      <div className="flex flex-col flex-1 h-full max-h-screen overflow-hidden p-3">
+        <div className="mb-3 flex-shrink-0">
+          <h1 className="text-xl font-bold text-gray-800">Chat with Brandt AI</h1>
+          <p className="text-sm text-gray-500">Ask questions about products, orders, or company information</p>
         </div>
 
-        <div className="flex flex-col flex-1 px-4 pb-3">
+        <div className="flex flex-col flex-1 overflow-hidden min-h-0">
           <Card className="flex flex-col flex-1 overflow-hidden border-gray-200 shadow-md rounded-xl">
-            <CardContent className="p-0 flex flex-col flex-1">
-              <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
+            <CardContent className="p-1 flex flex-col flex-1">
+              <div className="flex-1 overflow-y-auto p-4 bg-gray-50 max-h-[calc(100vh-290px)]">
                 {messages.map((message, index) => {
                   // Check if this message is from the same sender as the previous one
                   const prevMessage = index > 0 ? messages[index - 1] : null;
@@ -316,7 +316,7 @@ export default function ChatContainer() {
                 {isLoading && <TypingIndicator isRetrying={isRetrying} />}
                 <div ref={messagesEndRef} />
               </div>
-
+              
               <ChatInput
                 onSendMessage={(message) => {
                   if (!message.trim() || !session || !tenantId) return;

@@ -20,7 +20,7 @@ export function formatTime(date: Date) {
 
 // Simple text component for rendering plain text
 function SimpleText({ text }: { text: string }) {
-  return <p className="mb-2">{text}</p>;
+  return <p className="mb-1.5">{text}</p>;
 }
 
 // Function to render the appropriate component based on componentData
@@ -57,25 +57,25 @@ export default function ChatMessage({
         {isFirstInGroup && (
           <div
             className={cn(
-              "flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center",
+              "flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center",
               isUser
-                ? "bg-gradient-to-br from-gray-800 to-black text-white shadow-md ml-3"
-                : "bg-gradient-to-br from-[#E31937] to-[#c01730] text-white shadow-md mr-3"
+                ? "bg-gradient-to-br from-gray-800 to-black text-white shadow-md ml-2"
+                : "bg-gradient-to-br from-[#E31937] to-[#c01730] text-white shadow-md mr-2"
             )}
           >
-            {isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+            {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
           </div>
         )}
 
         {/* Spacer div to align consecutive messages */}
         {!isFirstInGroup && (
-          <div className={cn("flex-shrink-0 w-10", isUser ? "ml-3" : "mr-3")}></div>
+          <div className={cn("flex-shrink-0 w-8", isUser ? "ml-2" : "mr-2")}></div>
         )}
 
         <div className="max-w-full">
           <div
             className={cn(
-              "p-4 rounded-2xl shadow-sm transition-all",
+              "p-3 rounded-xl shadow-sm transition-all",
               isUser
                 ? "bg-gradient-to-r from-[#E31937] to-[#c01730] text-white"
                 : "bg-white border border-gray-200 hover:border-gray-300",
@@ -87,7 +87,7 @@ export default function ChatMessage({
             <div className={cn(
               "prose max-w-none",
               isUser ? "prose-invert" : "",
-              "text-base leading-relaxed"
+              "text-sm leading-relaxed"
             )}>
               {componentData ? (
                 renderComponent(componentData)
@@ -112,7 +112,7 @@ export default function ChatMessage({
                       // End of code block
                       formattedContent.push(
                         <pre key={`code-${i}`} className={cn(
-                          "text-sm rounded-md bg-gray-100 p-3 overflow-x-auto my-3",
+                          "text-xs rounded-md bg-gray-100 p-2 overflow-x-auto my-2",
                           isUser ? "bg-opacity-20" : ""
                         )}>
                           <code>{currentCodeBlock}</code>
@@ -180,13 +180,13 @@ export default function ChatMessage({
                     // Push the current list before moving on
                     if (currentListType === 'bullet') {
                       formattedContent.push(
-                        <ul key={`ul-${i}`} className="list-disc pl-5 mb-3 mt-2 space-y-1">
+                        <ul key={`ul-${i}`} className="list-disc pl-4 mb-2 mt-1.5 space-y-0.5 text-sm">
                           {currentList}
                         </ul>
                       );
                     } else if (currentListType === 'number') {
                       formattedContent.push(
-                        <ol key={`ol-${i}`} className="list-decimal pl-5 mb-3 mt-2 space-y-1">
+                        <ol key={`ol-${i}`} className="list-decimal pl-4 mb-2 mt-1.5 space-y-0.5 text-sm">
                           {currentList}
                         </ol>
                       );
@@ -206,7 +206,7 @@ export default function ChatMessage({
                   if (parts.length > 1) {
                     // Has inline code
                     formattedContent.push(
-                      <p key={`p-${i}`} className="mb-2">
+                      <p key={`p-${i}`} className="mb-1.5 text-sm">
                         {parts.map((part, j) => {
                           if (j % 2 === 0) {
                             // Process links in text parts
@@ -234,7 +234,7 @@ export default function ChatMessage({
                               <code
                                 key={j}
                                 className={cn(
-                                  "px-1.5 py-0.5 rounded font-mono text-sm",
+                                  "px-1 py-0.5 rounded font-mono text-xs",
                                   isUser
                                     ? "bg-white bg-opacity-20"
                                     : "bg-gray-100"
@@ -250,7 +250,7 @@ export default function ChatMessage({
                   } else {
                     // Regular paragraph
                     formattedContent.push(
-                      <p key={`p-${i}`} className="mb-2">
+                      <p key={`p-${i}`} className="mb-1.5 text-sm">
                         {line.split(/(https?:\/\/[^\s]+)/).map((text, j) => {
                           if (text.match(/^https?:\/\//)) {
                             return (
@@ -279,13 +279,13 @@ export default function ChatMessage({
                 if (currentList) {
                   if (currentListType === 'bullet') {
                     formattedContent.push(
-                      <ul key="ul-last" className="list-disc pl-5 mb-3 mt-2 space-y-1">
+                      <ul key="ul-last" className="list-disc pl-4 mb-2 mt-1.5 space-y-0.5 text-sm">
                         {currentList}
                       </ul>
                     );
                   } else if (currentListType === 'number') {
                     formattedContent.push(
-                      <ol key="ol-last" className="list-decimal pl-5 mb-3 mt-2 space-y-1">
+                      <ol key="ol-last" className="list-decimal pl-4 mb-2 mt-1.5 space-y-0.5 text-sm">
                         {currentList}
                       </ol>
                     );
@@ -296,7 +296,7 @@ export default function ChatMessage({
                 if (inCodeBlock && currentCodeBlock) {
                   formattedContent.push(
                     <pre key="code-last" className={cn(
-                      "text-sm rounded-md bg-gray-100 p-3 overflow-x-auto my-3",
+                      "text-xs rounded-md bg-gray-100 p-2 overflow-x-auto my-2",
                       isUser ? "bg-opacity-20" : ""
                     )}>
                       <code>{currentCodeBlock}</code>
