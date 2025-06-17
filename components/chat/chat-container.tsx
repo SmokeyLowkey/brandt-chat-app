@@ -9,10 +9,13 @@ import ChatMessage from "@/components/chat/chat-message";
 import TypingIndicator from "@/components/chat/typing-indicator";
 import ChatInput from "@/components/chat/chat-input";
 
+import { ComponentData } from "@/utils/chat-processing";
+
 interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  componentData?: ComponentData;
 }
 
 export default function ChatContainer() {
@@ -27,6 +30,9 @@ export default function ChatContainer() {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -115,8 +121,16 @@ export default function ChatContainer() {
   };
 
   // Send message to API
-  const sendMessage = async (messageText: string) => {
+  const sendMessage = async (messageText: string, isRetry = false) => {
     if (!messageText.trim() || !session || !tenantId) return;
+    
+    // Store the last user message for potential retries
+    if (!isRetry) {
+      setLastUserMessage(messageText);
+      setRetryCount(0);
+    } else {
+      setIsRetrying(true);
+    }
     
     setIsLoading(true);
 
@@ -129,7 +143,8 @@ export default function ChatContainer() {
         },
         body: JSON.stringify({
           message: messageText,
-          conversationId: selectedConversationId
+          conversationId: selectedConversationId,
+          isRetry: isRetry
         })
       });
 
@@ -140,15 +155,79 @@ export default function ChatContainer() {
       // Get the response from the API
       const responseData = await response.json();
 
-      // Only add assistant message if there's content
-      if (responseData.content) {
+      // Check if we're in fallback mode
+      if (responseData.isFallbackMode === true) {
+        console.log("Detected fallback mode response");
+        
+        // If this is already a retry and we've reached the max retry count, just show the fallback message
+        if (isRetry && retryCount >= 2) {
+          console.log(`Max retry count (${retryCount}) reached, showing fallback message`);
+          
+          const fallbackMessage: Message = {
+            role: "assistant",
+            content: responseData.content,
+            timestamp: new Date(),
+          };
+          
+          setMessages((prev) => [...prev, fallbackMessage]);
+          setIsRetrying(false);
+        } else {
+          // If we're in fallback mode, add an apologetic message and schedule a retry
+          const apologeticMessage: Message = {
+            role: "assistant",
+            content: isRetry
+              ? "I'm still having trouble connecting to the AI service. Trying again..."
+              : "I apologize, but I'm having trouble connecting to the AI service. Let me try again...",
+            timestamp: new Date(),
+          };
+          
+          setMessages((prev) => [...prev, apologeticMessage]);
+          
+          // Increment retry count
+          setRetryCount((prev) => prev + 1);
+          
+          // Schedule a retry after a delay
+          setTimeout(() => {
+            console.log(`Retrying message, attempt ${retryCount + 1}`);
+            
+            // For better context preservation, if this is a short question,
+            // we can enhance it with context from previous messages
+            let enhancedMessage = messageText;
+            
+            // If it's a short question (less than 30 chars), add context from previous messages
+            if (messageText.length < 30 && messages.length >= 3) {
+              // Find the last user and assistant messages before this one
+              const prevUserMessages = messages.filter(m => m.role === "user");
+              const prevAssistantMessages = messages.filter(m => m.role === "assistant");
+              
+              if (prevUserMessages.length >= 2 && prevAssistantMessages.length >= 1) {
+                const prevUserMessage = prevUserMessages[prevUserMessages.length - 2];
+                const prevAssistantMessage = prevAssistantMessages[prevAssistantMessages.length - 1];
+                
+                // Create a context-enhanced message
+                enhancedMessage = `Continuing our conversation about ${prevUserMessage.content.substring(0, 50)}... where you previously told me about ${prevAssistantMessage.content.substring(0, 50)}..., ${messageText}`;
+                
+                console.log("Enhanced retry message with context:", enhancedMessage);
+              }
+            }
+            
+            sendMessage(enhancedMessage, true);
+          }, 5000); // 5 second delay before retry
+          
+          setIsLoading(false);
+          return;
+        }
+      } else if (responseData.content) {
+        // Normal response with content
         const assistantMessage: Message = {
           role: "assistant",
           content: responseData.content,
           timestamp: new Date(),
+          componentData: responseData.componentData
         };
         
         setMessages((prev) => [...prev, assistantMessage]);
+        setIsRetrying(false);
       } else {
         // If no content, keep loading state active
         // This will show the typing animation
@@ -166,6 +245,7 @@ export default function ChatContainer() {
             }
           ]);
           setIsLoading(false);
+          setIsRetrying(false);
         }, 10000);
         
         // Return early to keep loading state active
@@ -187,6 +267,7 @@ export default function ChatContainer() {
       };
       
       setMessages((prev) => [...prev, errorMessage]);
+      setIsRetrying(false);
     } finally {
       setIsLoading(false);
     }
@@ -228,10 +309,11 @@ export default function ChatContainer() {
                       timestamp={message.timestamp}
                       isFirstInGroup={isFirstInGroup}
                       isLastInGroup={isLastInGroup}
+                      componentData={message.componentData}
                     />
                   );
                 })}
-                {isLoading && <TypingIndicator />}
+                {isLoading && <TypingIndicator isRetrying={isRetrying} />}
                 <div ref={messagesEndRef} />
               </div>
 

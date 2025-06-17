@@ -182,6 +182,8 @@ export class DocumentService {
    */
   static async deleteDocument(tenantId: string, documentId: string): Promise<boolean> {
     try {
+      console.log(`Attempting to delete document: ${documentId} for tenant: ${tenantId}`)
+      
       const response = await fetch(
         `/api/tenants/${tenantId}/documents/${documentId}`,
         {
@@ -193,14 +195,17 @@ export class DocumentService {
       )
 
       if (!response.ok) {
-        throw new Error('Failed to delete document')
+        // Get the error details from the response
+        const errorData = await response.text()
+        console.error(`Delete document failed with status: ${response.status}, details:`, errorData)
+        throw new Error(`Failed to delete document: ${response.status} - ${errorData}`)
       }
 
       toast.success('Document deleted successfully')
       return true
     } catch (error) {
       console.error('Error deleting document:', error)
-      toast.error('Failed to delete document')
+      toast.error(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`)
       return false
     }
   }

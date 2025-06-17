@@ -128,10 +128,14 @@ export function DocumentList({ documents, onDocumentDelete }: DocumentListProps)
                   >
                     <Eye className="h-4 w-4 text-gray-500" />
                   </Button>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="icon"
-                    onClick={() => onDocumentDelete(doc.id)}
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to delete "${doc.name}"?`)) {
+                        onDocumentDelete(doc.id);
+                      }
+                    }}
                     title="Delete document"
                   >
                     <Trash2 className="h-4 w-4 text-gray-500" />

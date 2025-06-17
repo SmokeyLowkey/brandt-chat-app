@@ -106,7 +106,7 @@ export async function sendDocumentToProcessing(document: {
   mimeType?: string;
 }) {
   // Always use the production webhook URL
-  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
+  const n8nWebhookUrl = process.env.N8N_TEST_WEBHOOK_URL
 
   if (!n8nWebhookUrl) {
     console.warn("N8N_WEBHOOK_URL not configured")

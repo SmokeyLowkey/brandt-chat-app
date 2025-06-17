@@ -3,16 +3,34 @@
 import { Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { ComponentData } from "@/utils/chat-processing";
+
 interface ChatMessageProps {
   content: string;
   role: "user" | "assistant";
   timestamp: Date;
   isFirstInGroup: boolean;
   isLastInGroup: boolean;
+  componentData?: ComponentData;
 }
 
 export function formatTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// Simple text component for rendering plain text
+function SimpleText({ text }: { text: string }) {
+  return <p className="mb-2">{text}</p>;
+}
+
+// Function to render the appropriate component based on componentData
+function renderComponent(componentData: ComponentData) {
+  switch (componentData.component) {
+    case 'SimpleText':
+      return <SimpleText text={componentData.props.text} />;
+    default:
+      return <p className="mb-2 text-amber-600">Unknown component type: {componentData.component}</p>;
+  }
 }
 
 export default function ChatMessage({
@@ -21,6 +39,7 @@ export default function ChatMessage({
   timestamp,
   isFirstInGroup,
   isLastInGroup,
+  componentData,
 }: ChatMessageProps) {
   const isUser = role === "user";
 
@@ -64,14 +83,17 @@ export default function ChatMessage({
               isFirstInGroup && isUser ? "rounded-tr-sm" : ""
             )}
           >
-            {/* Format message content with markdown-like styling */}
+            {/* Render component if componentData is available, otherwise format message content */}
             <div className={cn(
               "prose max-w-none",
               isUser ? "prose-invert" : "",
               "text-base leading-relaxed"
             )}>
-              {/* Process the content as a whole to better handle multi-line lists */}
-              {(() => {
+              {componentData ? (
+                renderComponent(componentData)
+              ) : (
+                /* Process the content as a whole to better handle multi-line lists */
+                (() => {
                 // Split content into lines
                 const lines = content.split('\n');
                 const formattedContent = [];
@@ -283,7 +305,7 @@ export default function ChatMessage({
                 }
 
                 return formattedContent;
-              })()}
+              })())}
             </div>
           </div>
 

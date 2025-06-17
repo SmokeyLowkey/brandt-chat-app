@@ -59,13 +59,34 @@ export default function DocumentsPage() {
   }
 
   const handleDeleteDocument = async (documentId: string) => {
-    if (!session || !tenantId) return
+    if (!session || !tenantId) {
+      toast.error("Authentication error. Please log in again.")
+      return
+    }
     
-    const success = await DocumentService.deleteDocument(tenantId, documentId)
-    
-    if (success) {
-      // Remove the document from the local state
-      setDocuments(documents.filter((doc) => doc.id !== documentId))
+    try {
+      // Find the document name for better user feedback
+      const documentToDelete = documents.find(doc => doc.id === documentId)
+      const documentName = documentToDelete?.name || "document"
+      
+      // Show loading toast
+      toast.loading(`Deleting ${documentName}...`)
+      
+      const success = await DocumentService.deleteDocument(tenantId, documentId)
+      
+      if (success) {
+        // Remove the document from the local state
+        setDocuments(documents.filter((doc) => doc.id !== documentId))
+        toast.dismiss()
+        toast.success(`"${documentName}" deleted successfully`)
+      } else {
+        toast.dismiss()
+        toast.error(`Failed to delete "${documentName}". Please try again.`)
+      }
+    } catch (error) {
+      console.error("Error in handleDeleteDocument:", error)
+      toast.dismiss()
+      toast.error(`An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { sendChatMessage, ChatMessage } from "@/utils/chat-processing";
+import { sendChatMessage, ChatMessage, ComponentData } from "@/utils/chat-processing";
 
 export async function POST(
   request: NextRequest,
@@ -35,7 +35,7 @@ export async function POST(
 
     // Parse the request body
     const body = await request.json();
-    const { message, conversationId } = body;
+    const { message, conversationId, isRetry } = body;
 
     // Validate the request
     if (!message) {
@@ -78,6 +78,29 @@ export async function POST(
         content: msg.content,
         timestamp: msg.createdAt.toISOString(),
       }));
+      
+      // If this is a retry after fallback mode, add a system message to help maintain context
+      if (isRetry) {
+        // Find the main topic of conversation by analyzing recent messages
+        const recentMessages = conversation.messages.slice(-4);
+        let mainTopic = "";
+        
+        for (const msg of recentMessages) {
+          if (msg.role === "USER" && msg.content.length > 20) {
+            // Use the longest user message as a potential topic indicator
+            if (msg.content.length > mainTopic.length) {
+              mainTopic = msg.content.substring(0, 100);
+            }
+          }
+        }
+        
+        // Add a system message to help the AI maintain context
+        chatHistory.unshift({
+          role: "system",
+          content: `This is a retry after a temporary service disruption. The conversation is about: ${mainTopic}. Please maintain context and provide a relevant response to the user's latest question.`,
+          timestamp: new Date().toISOString(),
+        });
+      }
     } else {
       // Create a new conversation
       conversation = await prisma.conversation.create({
@@ -87,6 +110,15 @@ export async function POST(
           userId: session.user.id,
         },
       });
+      
+      // If this is a retry for a new conversation, add a system message
+      if (isRetry) {
+        chatHistory.unshift({
+          role: "system",
+          content: `This is a retry after a temporary service disruption. The user's question is: "${message}". Please provide a relevant response.`,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
 
     // Store the user message in the database
@@ -109,6 +141,9 @@ export async function POST(
       session.user.id,
       sessionId // Pass the generated session ID
     );
+    
+    // Check if the response is in fallback mode
+    const isFallbackMode = response.isFallbackMode === true;
 
     // Store the assistant response in the database
     await prisma.message.create({
@@ -127,11 +162,22 @@ export async function POST(
       });
     }
 
-    // Return the response with conversation info
-    return NextResponse.json({
-      ...response,
+    // Return the response with conversation info and fallback mode flag
+    // Use type assertion to handle the componentData property
+    const responseData = {
+      content: response.content,
+      role: response.role,
+      timestamp: response.timestamp,
       conversationId: conversation.id,
-    });
+      isFallbackMode: response.isFallbackMode === true
+    };
+    
+    // Add componentData if it exists (using type assertion)
+    if ('componentData' in response && response.componentData) {
+      (responseData as any).componentData = (response as any).componentData;
+    }
+    
+    return NextResponse.json(responseData);
   } catch (error) {
     console.error("Error in chat API:", error);
     return NextResponse.json(

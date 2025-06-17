@@ -4,10 +4,17 @@ import jwt from "jsonwebtoken";
 /**
  * Interface for chat message
  */
+export interface ComponentData {
+  component: string;
+  props: Record<string, any>;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
   timestamp?: string;
+  isFallbackMode?: boolean;
+  componentData?: ComponentData;
 }
 
 /**
@@ -15,6 +22,68 @@ export interface ChatMessage {
  */
 export interface ChatHistory {
   messages: ChatMessage[];
+}
+
+/**
+ * Extracts relevant context from chat history to help maintain conversation flow
+ * This is especially useful when recovering from fallback mode
+ */
+function extractContextFromHistory(chatHistory: ChatMessage[], currentMessage: string): string {
+  // If there's no history, just return the current message
+  if (!chatHistory || chatHistory.length === 0) {
+    return currentMessage;
+  }
+
+  // Get the last 4 messages (or fewer if there aren't that many)
+  const recentMessages = chatHistory.slice(-4);
+  
+  // Extract the main topic from the conversation
+  let mainTopics: string[] = [];
+  let contextualQuestion = currentMessage;
+  
+  // Look for key nouns and topics in the conversation
+  for (const msg of recentMessages) {
+    // Skip system messages
+    if (msg.role === 'system') continue;
+    
+    // Extract potential topics (simple approach - look for repeated nouns)
+    const words = msg.content.toLowerCase().split(/\s+/);
+    const potentialTopics = words.filter(word =>
+      word.length > 3 &&
+      !['what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how', 'this', 'that', 'these', 'those', 'there', 'their', 'they', 'them'].includes(word)
+    );
+    
+    mainTopics = [...mainTopics, ...potentialTopics];
+  }
+  
+  // Count occurrences of each topic
+  const topicCounts: Record<string, number> = {};
+  for (const topic of mainTopics) {
+    topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+  }
+  
+  // Get the top 3 most frequent topics
+  const topTopics = Object.entries(topicCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(entry => entry[0]);
+  
+  // Create a context-preserving query
+  if (topTopics.length > 0) {
+    contextualQuestion = `Regarding ${topTopics.join(', ')}, ${currentMessage}`;
+  }
+  
+  // For short questions like "what's the standard size?", add explicit context
+  if (currentMessage.length < 30 && recentMessages.length >= 2) {
+    const lastUserMessage = recentMessages.filter(msg => msg.role === 'user').slice(-2)[0];
+    const lastBotMessage = recentMessages.filter(msg => msg.role === 'assistant').slice(-1)[0];
+    
+    if (lastUserMessage && lastBotMessage) {
+      contextualQuestion = `In the context of our conversation about ${topTopics.join(', ')}, where I previously asked "${lastUserMessage.content}" and you told me about "${lastBotMessage.content.substring(0, 50)}...", ${currentMessage}`;
+    }
+  }
+  
+  return contextualQuestion;
 }
 
 /**
@@ -123,8 +192,10 @@ export async function sendChatMessage(
           role: user.role
         }
       },
-      // Add query field for the n8n workflow
-      query: message
+      // Add query field for the n8n workflow with context preservation
+      query: message,
+      // Add context field to help the AI maintain context after fallback mode
+      context: extractContextFromHistory(chatHistory, message)
     };
     
     // Send the message to the webhook
@@ -160,27 +231,88 @@ export async function sendChatMessage(
       
       // Use a fallback response when the webhook is unavailable
       responseData = {
-        message: "I'm currently operating in fallback mode. The AI service is temporarily unavailable, but I've saved your message and will process it when the service is restored."
+        message: "I'm currently operating in fallback mode. The AI service is temporarily unavailable, but I've saved your message and will process it when the service is restored.",
+        isFallbackMode: true // Add a flag to indicate fallback mode
       };
     }
     
     // Create a chat message from the response
     let responseContent = "";
+    let componentData: ComponentData | undefined = undefined;
     
     // Handle different response formats
     if (typeof responseData === 'string') {
       // Handle string response
-      responseContent = responseData || "";
+      try {
+        // Check if it's a JSON string containing component data
+        const parsedData = JSON.parse(responseData);
+        if (parsedData.component && parsedData.props) {
+          componentData = parsedData;
+          responseContent = parsedData.props.text || "Component response";
+        } else {
+          responseContent = responseData || "";
+        }
+      } catch (e) {
+        // If it's not valid JSON, use it as-is
+        responseContent = responseData || "";
+      }
     } else if (Array.isArray(responseData) && responseData.length > 0) {
       // Handle array response format from n8n webhook
-      if (responseData[0].output) {
-        responseContent = responseData[0].output;
-      } else if (responseData[0].response) {
-        responseContent = responseData[0].response;
-      } else if (responseData[0].message) {
-        responseContent = responseData[0].message;
-      } else if (responseData[0].content) {
-        responseContent = responseData[0].content;
+      const firstItem = responseData[0];
+      
+      // Check if this is a response object with nested structure
+      if (firstItem.response && firstItem.response.body &&
+          firstItem.response.body["RESPONSE FROM WEBHOOK SUCCEEDED"]) {
+        
+        const webhookOutput = firstItem.response.body["RESPONSE FROM WEBHOOK SUCCEEDED"][0]?.output;
+        
+        // Try to parse the output as JSON if it's a string
+        if (webhookOutput && typeof webhookOutput === 'string') {
+          try {
+            // Check if it's a JSON string containing component data
+            const parsedOutput = JSON.parse(webhookOutput);
+            if (parsedOutput.component && parsedOutput.props) {
+              // Store component data for rendering
+              componentData = parsedOutput;
+              // Extract text content for message history
+              responseContent = parsedOutput.props.text || "Component response";
+            } else {
+              responseContent = webhookOutput;
+            }
+          } catch (e) {
+            // If it's not valid JSON, use it as-is
+            responseContent = webhookOutput;
+          }
+        } else if (webhookOutput) {
+          responseContent = webhookOutput;
+        }
+      } else if (firstItem.output) {
+        // Try to parse the output as JSON if it's a string
+        if (typeof firstItem.output === 'string') {
+          try {
+            // Check if it's a JSON string containing component data
+            const parsedOutput = JSON.parse(firstItem.output);
+            if (parsedOutput.component && parsedOutput.props) {
+              // Store component data for rendering
+              componentData = parsedOutput;
+              // Extract text content for message history
+              responseContent = parsedOutput.props.text || "Component response";
+            } else {
+              responseContent = firstItem.output;
+            }
+          } catch (e) {
+            // If it's not valid JSON, use it as-is
+            responseContent = firstItem.output;
+          }
+        } else {
+          responseContent = firstItem.output;
+        }
+      } else if (firstItem.response) {
+        responseContent = firstItem.response;
+      } else if (firstItem.message) {
+        responseContent = firstItem.message;
+      } else if (firstItem.content) {
+        responseContent = firstItem.content;
       }
     } else if (responseData && typeof responseData === 'object') {
       // Handle object response with various formats
@@ -192,7 +324,26 @@ export async function sendChatMessage(
         
         const webhookResponse = responseData["RESPONSE FROM WEBHOOK SUCCEEDED"][0];
         if (webhookResponse.output) {
-          responseContent = webhookResponse.output;
+          // Try to parse the output as JSON if it's a string
+          if (typeof webhookResponse.output === 'string') {
+            try {
+              // Check if it's a JSON string containing component data
+              const parsedOutput = JSON.parse(webhookResponse.output);
+              if (parsedOutput.component && parsedOutput.props) {
+                // Store component data for rendering
+                componentData = parsedOutput;
+                // Extract text content for message history
+                responseContent = parsedOutput.props.text || "Component response";
+              } else {
+                responseContent = webhookResponse.output;
+              }
+            } catch (e) {
+              // If it's not valid JSON, use it as-is
+              responseContent = webhookResponse.output;
+            }
+          } else {
+            responseContent = webhookResponse.output;
+          }
         } else if (webhookResponse.response) {
           responseContent = webhookResponse.response;
         } else if (webhookResponse.message) {
@@ -217,7 +368,9 @@ export async function sendChatMessage(
     const assistantMessage: ChatMessage = {
       role: "assistant",
       content: responseContent,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isFallbackMode: responseData.isFallbackMode === true,
+      componentData: componentData
     };
     
     return assistantMessage;
@@ -228,7 +381,8 @@ export async function sendChatMessage(
     return {
       role: "assistant",
       content: "I'm sorry, there was an error processing your message. Please try again later.",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      isFallbackMode: true
     };
   }
 }

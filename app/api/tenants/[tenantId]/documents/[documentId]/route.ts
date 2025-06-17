@@ -137,9 +137,12 @@ export async function DELETE(
   try {
     // Access params inside async context
     const { tenantId, documentId } = context.params;
+    console.log(`DELETE request for document: ${documentId} in tenant: ${tenantId}`)
+    
     const session = await getServerSession(authOptions)
     
     if (!session) {
+      console.log("DELETE document - Unauthorized: No session found")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -150,9 +153,12 @@ export async function DELETE(
       },
     })
 
+    console.log(`DELETE document - User: ${user?.id}, role: ${user?.role}, userTenantId: ${user?.tenantId}`)
     
-    if (!user || user.tenantId !== tenantId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    // Allow admins to access any tenant, but restrict other users to their assigned tenant
+    if (!user || (user.role !== "ADMIN" && user.tenantId !== tenantId)) {
+      console.log("DELETE document - Forbidden: User tenant doesn't match requested tenant and user is not an admin")
+      return NextResponse.json({ error: "Forbidden - User does not have access to this tenant" }, { status: 403 })
     }
 
     // Check if document exists
@@ -164,21 +170,33 @@ export async function DELETE(
     })
 
     if (!existingDocument) {
+      console.log(`DELETE document - Not found: Document ${documentId} not found in tenant ${tenantId}`)
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
 
-    // Delete document
-    await prisma.document.delete({
-      where: {
-        id: documentId,
-      },
-    })
+    console.log(`DELETE document - Found document: ${existingDocument.id}, name: ${existingDocument.name}`)
 
-    return NextResponse.json({ success: true })
+    try {
+      // Delete document
+      await prisma.document.delete({
+        where: {
+          id: documentId,
+        },
+      })
+      
+      console.log(`DELETE document - Successfully deleted document: ${documentId}`)
+      return NextResponse.json({ success: true })
+    } catch (deleteError) {
+      console.error("Error in Prisma delete operation:", deleteError)
+      return NextResponse.json(
+        { error: "Database error during document deletion", details: String(deleteError) },
+        { status: 500 }
+      )
+    }
   } catch (error) {
     console.error("Error deleting document:", error)
     return NextResponse.json(
-      { error: "Failed to delete document" },
+      { error: "Failed to delete document", details: String(error) },
       { status: 500 }
     )
   }
