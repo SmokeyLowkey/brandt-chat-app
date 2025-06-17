@@ -35,8 +35,9 @@ export async function GET(
     })
     console.log("API - Requested tenantId:", tenantId)
     
-    if (!user || user.tenantId !== tenantId) {
-      console.log("API - Access denied: User tenant doesn't match requested tenant")
+    // Allow admins to access any tenant, but restrict other users to their assigned tenant
+    if (!user || (user.role !== "ADMIN" && user.tenantId !== tenantId)) {
+      console.log("API - Access denied: User tenant doesn't match requested tenant and user is not an admin")
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -109,7 +110,9 @@ export async function POST(
     })
 
     
-    if (!user || user.tenantId !== tenantId) {
+    // Allow admins to access any tenant, but restrict other users to their assigned tenant
+    if (!user || (user.role !== "ADMIN" && user.tenantId !== tenantId)) {
+      console.log("API - Access denied: User tenant doesn't match requested tenant and user is not an admin")
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

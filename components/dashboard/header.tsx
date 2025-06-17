@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { signOut, useSession } from "next-auth/react"
-import { Bell, Search } from "lucide-react"
+import { Bell, Search, Building, CheckCircle2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,8 +18,44 @@ import { toast } from "sonner"
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [tenants, setTenants] = useState<any[]>([])
+  const [isLoadingTenants, setIsLoadingTenants] = useState(false)
   const { data: session } = useSession()
-  const { tenantName } = useTenant()
+  const { tenantName, tenantId, isAdmin, setOverrideTenant, resetToUserTenant } = useTenant()
+  
+  // Fetch tenants for admin
+  useEffect(() => {
+    const fetchTenants = async () => {
+      if (!isAdmin) return
+      
+      try {
+        setIsLoadingTenants(true)
+        const response = await fetch("/api/tenants")
+        if (response.ok) {
+          const data = await response.json()
+          setTenants(data)
+        }
+      } catch (error) {
+        console.error("Error fetching tenants:", error)
+      } finally {
+        setIsLoadingTenants(false)
+      }
+    }
+    
+    fetchTenants()
+  }, [isAdmin])
+  
+  // Handle tenant selection
+  const handleTenantSelect = (tenant: any) => {
+    setOverrideTenant(tenant.id, tenant.name, tenant.slug)
+    toast.success(`Switched to tenant: ${tenant.name}`)
+  }
+  
+  // Reset to user's original tenant
+  const handleResetTenant = () => {
+    resetToUserTenant()
+    toast.success("Switched back to your tenant")
+  }
 
   const handleSignOut = async () => {
     await signOut({ redirect: false })
@@ -58,6 +94,51 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Tenant Selector for Admins */}
+          {isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex items-center gap-2">
+                  <Building className="h-4 w-4" />
+                  <span className="max-w-[150px] truncate">{tenantName || "Select Tenant"}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Switch Tenant</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isLoadingTenants ? (
+                  <DropdownMenuItem disabled>Loading tenants...</DropdownMenuItem>
+                ) : (
+                  <>
+                    {tenants.map((tenant) => (
+                      <DropdownMenuItem
+                        key={tenant.id}
+                        onClick={() => handleTenantSelect(tenant)}
+                        className="cursor-pointer flex items-center justify-between"
+                      >
+                        <span className="truncate">{tenant.name}</span>
+                        {tenant.id === tenantId && (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                    {session?.user?.tenantId && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={handleResetTenant}
+                          className="cursor-pointer text-[#E31937]"
+                        >
+                          Reset to my tenant
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">

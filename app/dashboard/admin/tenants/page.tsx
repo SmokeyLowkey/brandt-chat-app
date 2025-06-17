@@ -94,27 +94,60 @@ export default function TenantsPage() {
   const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Prepare tenant data - ensure domain is null if empty
+    const tenantData = {
+      ...newTenant,
+      domain: newTenant.domain.trim() === "" ? null : newTenant.domain
+    };
+    
+    console.log("Creating tenant with data:", tenantData);
+    
     try {
+      toast.info("Submitting tenant creation request...");
+      
       const response = await fetch("/api/tenants", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(newTenant),
+        body: JSON.stringify(tenantData),
       });
 
+      console.log("Response status:", response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        setTenants([...tenants, data]);
+        console.log("Tenant created successfully:", data);
+        
+        // Add _count property to the new tenant if it doesn't exist
+        const newTenantWithCount = {
+          ...data,
+          _count: data._count || { users: 0 }
+        };
+        
+        setTenants([...tenants, newTenantWithCount]);
         setNewTenant({ name: "", slug: "", domain: "" });
         setIsDialogOpen(false);
         toast.success("Tenant created successfully");
+        
+        // Refresh the tenant list to get the complete data
+        setTimeout(() => {
+          router.refresh();
+        }, 1000);
       } else {
-        const error = await response.text();
-        toast.error(error || "Failed to create tenant");
+        const errorText = await response.text();
+        console.error("Failed to create tenant:", errorText);
+        
+        // Handle specific errors
+        if (errorText.includes("Unique constraint failed on the fields: (`slug`)")) {
+          toast.error("A tenant with this slug already exists. Please use a different slug.");
+        } else {
+          toast.error(errorText || "Failed to create tenant");
+        }
       }
     } catch (error) {
-      toast.error("Something went wrong");
+      console.error("Exception during tenant creation:", error);
+      toast.error("Something went wrong: " + (error instanceof Error ? error.message : String(error)));
     }
   };
 

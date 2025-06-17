@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { useTenant } from "@/providers/tenant-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,6 +16,7 @@ import { DocumentService, Document as DocumentType } from "@/services/document-s
 
 export default function DocumentsPage() {
   const { data: session } = useSession()
+  const { tenantId, tenantName } = useTenant()
   const [documents, setDocuments] = useState<DocumentType[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
@@ -22,19 +24,14 @@ export default function DocumentsPage() {
   // Fetch documents from the API using DocumentService
   useEffect(() => {
     const fetchDocuments = async () => {
-      if (!session) return
+      if (!session || !tenantId) return
 
       try {
         setIsLoading(true)
         
-        // Get the current tenant ID from the URL
-        const pathParts = window.location.pathname.split('/')
-        const tenantId = pathParts[2] === 'admin' && pathParts[3] === 'tenants'
-          ? pathParts[4] // Admin viewing a specific tenant
-          : session.user.tenantId // Regular user viewing their tenant
-        
-        // Fetch documents using the service
+        // Fetch documents using the service with the tenant ID from useTenant
         console.log("Fetching documents for tenantId:", tenantId)
+        console.log("Current tenant name:", tenantName)
         console.log("Current user role:", session.user.role)
         console.log("Current user ID:", session.user.id)
         
@@ -49,31 +46,20 @@ export default function DocumentsPage() {
     }
 
     fetchDocuments()
-  }, [session, searchQuery])
+  }, [session, tenantId, searchQuery])
 
   const handleDocumentUpload = async (documentId: string) => {
     toast.success(`Document uploaded with ID: ${documentId}`)
     
     // Refresh the document list
-    if (session) {
-      const pathParts = window.location.pathname.split('/')
-      const tenantId = pathParts[2] === 'admin' && pathParts[3] === 'tenants'
-        ? pathParts[4] // Admin viewing a specific tenant
-        : session.user.tenantId // Regular user viewing their tenant
-      
+    if (session && tenantId) {
       const data = await DocumentService.getDocuments(tenantId)
       setDocuments(data)
     }
   }
 
   const handleDeleteDocument = async (documentId: string) => {
-    if (!session) return
-    
-    // Get the current tenant ID
-    const pathParts = window.location.pathname.split('/')
-    const tenantId = pathParts[2] === 'admin' && pathParts[3] === 'tenants'
-      ? pathParts[4] // Admin viewing a specific tenant
-      : session.user.tenantId // Regular user viewing their tenant
+    if (!session || !tenantId) return
     
     const success = await DocumentService.deleteDocument(tenantId, documentId)
     
@@ -100,7 +86,7 @@ export default function DocumentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Document Management</h1>
+        <h1 className="text-2xl font-bold">Document Management {tenantName && `- ${tenantName}`}</h1>
         <p className="text-gray-500">Upload and manage documents for the AI assistant</p>
       </div>
 

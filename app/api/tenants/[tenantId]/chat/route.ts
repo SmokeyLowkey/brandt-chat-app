@@ -25,7 +25,8 @@ export async function POST(
     }
 
     // Check if the user has access to this tenant
-    if (session.user.tenantId !== tenantId) {
+    // Allow admins to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
       return NextResponse.json(
         { error: "Forbidden: You don't have access to this tenant" },
         { status: 403 }

@@ -20,7 +20,8 @@ export async function GET(
     }
 
     // Check if user has access to this tenant
-    if (session.user.tenantId !== tenantId) {
+    // Allow admins to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -61,7 +62,8 @@ export async function POST(
     }
 
     // Check if user has access to this tenant
-    if (session.user.tenantId !== tenantId) {
+    // Allow admins to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
