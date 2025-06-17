@@ -77,7 +77,7 @@ export default function ChatHistoryPanel({
   };
 
   return (
-    <div className="w-72 h-full border-r flex flex-col bg-gray-50 shadow-md">
+    <div className="w-72 h-full flex flex-col bg-gray-50 border-r shadow-md">
       <div className="p-4 border-b bg-white">
         <Button
           onClick={onNewConversation}

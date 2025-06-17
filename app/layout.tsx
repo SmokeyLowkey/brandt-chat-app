@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import { AuthProvider } from '@/providers/auth-provider'
 import { ThemeProvider } from '@/components/theme-provider'
+import { UploadProvider } from '@/providers/upload-provider'
+import { TenantProvider } from '@/providers/tenant-provider'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -15,12 +18,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
         <AuthProvider>
-          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-            {children}
-          </ThemeProvider>
+          <TenantProvider>
+            <UploadProvider>
+              <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+                {children}
+                <Toaster position="top-right" />
+              </ThemeProvider>
+            </UploadProvider>
+          </TenantProvider>
         </AuthProvider>
       </body>
     </html>

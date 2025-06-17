@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useTenant } from "@/providers/tenant-provider"
 import { toast } from "sonner"
+import { NotificationCenter } from "@/components/notification/notification-center"
+import { ProcessingStatusIndicator } from "@/components/document/processing-status-indicator"
 
 export function Header() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -77,19 +79,16 @@ export function Header() {
   return (
     <header className="border-b border-gray-100 bg-white">
       <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-        <div className="hidden md:block text-xl font-semibold">
-          {tenantName ? `${tenantName} - AI Assistant` : "Brandt AI Assistant"}
-        </div>
-
-        <div className="flex flex-1 items-center justify-end md:justify-center px-6">
+        {/* Search bar to the left */}
+        <div className="flex items-center gap-4 flex-1">
           <div className="w-full max-w-md relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input
-              placeholder="Search knowledge base..."
-              className="w-full bg-gray-50 border-gray-200 pl-9 rounded-lg"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+        <Input
+          placeholder="Search knowledge base..."
+          className="w-full bg-gray-50 border-gray-200 pl-9 rounded-lg"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
           </div>
         </div>
 
@@ -139,34 +138,11 @@ export function Header() {
             </DropdownMenu>
           )}
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-[#E31937] rounded-full"></span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">
-                <div className="flex flex-col gap-1">
-                  <p className="font-medium">New document uploaded</p>
-                  <p className="text-xs text-gray-500">2 minutes ago</p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
-                <div className="flex flex-col gap-1">
-                  <p className="font-medium">System update completed</p>
-                  <p className="text-xs text-gray-500">1 hour ago</p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-center text-sm text-[#E31937]">
-                View all notifications
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Document Processing Status Indicator */}
+          <ProcessingStatusIndicator />
+          
+          {/* Notification Center */}
+          <NotificationCenter />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

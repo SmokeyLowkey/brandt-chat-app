@@ -25,6 +25,7 @@ model Tenant {
   users         User[]
   documents     Document[]
   conversations Conversation[]
+  notifications Notification[]
 
   @@map("tenants")
 }
@@ -52,6 +53,7 @@ model User {
   sessions      Session[]
   documents     Document[]
   conversations Conversation[]
+  notifications Notification[]
 
   @@index([tenantId])
   @@map("users")
@@ -176,6 +178,29 @@ model Message {
 
   @@index([conversationId])
   @@map("messages")
+}
+
+// Notification model
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // e.g., "document_uploaded", "document_processed"
+  title     String
+  message   String
+  metadata  Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  // Multi-tenant relation
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // User relation (who created the notification)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@map("notifications")
 }
 
 // Enums

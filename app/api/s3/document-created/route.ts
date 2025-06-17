@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { sendDocumentToProcessing } from "@/utils/document-processing";
+import { createNotification } from "@/services/notification-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,7 +69,20 @@ export async function POST(request: NextRequest) {
         }
       });
       
-    //   console.log("Document created with ID:", document.id);
+      // Create notification for the tenant
+      await createNotification({
+        type: "document_uploaded",
+        title: "New Document Uploaded",
+        message: `${name} has been uploaded and is being processed.`,
+        metadata: {
+          documentId: document.id,
+          documentName: name,
+          documentType: type,
+          uploadedBy: userId,
+        },
+        tenantId,
+        userId,
+      });
       
       // Send document to processing service
       await sendDocumentToProcessing({

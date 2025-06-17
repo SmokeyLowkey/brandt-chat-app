@@ -282,15 +282,15 @@ export default function ChatContainer() {
         onDeleteConversation={deleteConversation}
       />
       
-      <div className="flex flex-col flex-1 h-full px-4 py-3">
-        <div className="mb-4">
+      <div className="flex flex-col flex-1 h-full">
+        <div className="px-4 py-3 mb-4">
           <h1 className="text-2xl font-bold text-gray-800">Chat with Brandt AI</h1>
           <p className="text-gray-500">Ask questions about products, orders, or company information</p>
         </div>
 
-        <Card className="flex-1 overflow-hidden mb-4 border-gray-200 shadow-md rounded-xl">
-          <CardContent className="p-0 h-[calc(100vh-240px)]">
-            <div className="h-full flex flex-col">
+        <div className="flex flex-col flex-1 px-4 pb-3">
+          <Card className="flex flex-col flex-1 overflow-hidden border-gray-200 shadow-md rounded-xl">
+            <CardContent className="p-0 flex flex-col flex-1">
               <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
                 {messages.map((message, index) => {
                   // Check if this message is from the same sender as the previous one
@@ -335,9 +335,9 @@ export default function ChatContainer() {
                 }}
                 isLoading={isLoading}
               />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

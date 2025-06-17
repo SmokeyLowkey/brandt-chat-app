@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createNotification } from "@/services/notification-service";
 
 /**
  * Updates a document's status and handles any related processing
@@ -14,6 +15,22 @@ export async function updateDocumentStatus(
   }
 ) {
   try {
+    // Get document details for notification
+    const document = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: {
+        name: true,
+        tenantId: true,
+        userId: true,
+        metadata: true,
+      },
+    });
+
+    if (!document) {
+      console.error(`Document ${documentId} not found`);
+      return false;
+    }
+
     // Update document status
     await prisma.document.update({
       where: { id: documentId },
@@ -30,15 +47,26 @@ export async function updateDocumentStatus(
           chunkIndex: chunk.chunkIndex || index,
         })),
       })
+
+      // Create notification for successful processing
+      if (document) {
+        await createNotification({
+          type: "document_processed",
+          title: "Document Processing Complete",
+          message: `${document.name} has been processed successfully and is now available.`,
+          metadata: {
+            documentId,
+            documentName: document.name,
+            status,
+          },
+          tenantId: document.tenantId,
+          userId: document.userId,
+        });
+      }
     }
 
     // If processing failed, store the error in metadata
     if (status === "FAILED" && options?.error) {
-      const document = await prisma.document.findUnique({
-        where: { id: documentId },
-        select: { metadata: true },
-      })
-
       const metadata = document?.metadata as any || {}
 
       await prisma.document.update({
@@ -51,6 +79,23 @@ export async function updateDocumentStatus(
           },
         },
       })
+
+      // Create notification for failed processing
+      if (document) {
+        await createNotification({
+          type: "document_processing_failed",
+          title: "Document Processing Failed",
+          message: `Processing of ${document.name} has failed.`,
+          metadata: {
+            documentId,
+            documentName: document.name,
+            status,
+            error: options.error,
+          },
+          tenantId: document.tenantId,
+          userId: document.userId,
+        });
+      }
     }
 
     return true
@@ -106,7 +151,7 @@ export async function sendDocumentToProcessing(document: {
   mimeType?: string;
 }) {
   // Always use the production webhook URL
-  const n8nWebhookUrl = process.env.N8N_TEST_WEBHOOK_URL
+  const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
 
   if (!n8nWebhookUrl) {
     console.warn("N8N_WEBHOOK_URL not configured")
