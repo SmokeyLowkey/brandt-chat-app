@@ -9,6 +9,12 @@ export interface ComponentData {
   props: Record<string, any>;
 }
 
+// Interface for ProductSpecs component
+export interface ProductSpec {
+  key: string;
+  value: string;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
@@ -34,52 +40,112 @@ function extractContextFromHistory(chatHistory: ChatMessage[], currentMessage: s
     return currentMessage;
   }
 
-  // Get the last 4 messages (or fewer if there aren't that many)
-  const recentMessages = chatHistory.slice(-4);
+  // Get more context by including more messages (last 6 instead of 4)
+  const recentMessages = chatHistory.slice(-6);
   
-  // Extract the main topic from the conversation
-  let mainTopics: string[] = [];
+  // Extract product mentions, part numbers, and vehicle models
+  const productMentions: string[] = [];
+  const partNumbers: string[] = [];
+  const vehicleModels: string[] = [];
   let contextualQuestion = currentMessage;
   
-  // Look for key nouns and topics in the conversation
+  // Regular expressions for identifying important entities
+  const partNumberRegex = /\b([A-Z0-9]{5,10})\b/g;
+  const vehicleModelRegex = /\b(\d{3})\s*(peterbilt|kenworth|freightliner|volvo|mack|international)\b|\b(peterbilt|kenworth|freightliner|volvo|mack|international)\s*(\d{3})\b/gi;
+  
+  // Extract key entities from conversation history
   for (const msg of recentMessages) {
     // Skip system messages
     if (msg.role === 'system') continue;
     
-    // Extract potential topics (simple approach - look for repeated nouns)
+    // Extract potential product mentions
     const words = msg.content.toLowerCase().split(/\s+/);
-    const potentialTopics = words.filter(word =>
+    const potentialProducts = words.filter(word =>
       word.length > 3 &&
       !['what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how', 'this', 'that', 'these', 'those', 'there', 'their', 'they', 'them'].includes(word)
     );
     
-    mainTopics = [...mainTopics, ...potentialTopics];
+    productMentions.push(...potentialProducts);
+    
+    // Extract part numbers
+    const partMatches = [...msg.content.matchAll(partNumberRegex)];
+    if (partMatches) {
+      partMatches.forEach(match => {
+        if (match[1] && !partNumbers.includes(match[1])) {
+          partNumbers.push(match[1]);
+        }
+      });
+    }
+    
+    // Extract vehicle models
+    const vehicleMatches = [...msg.content.matchAll(vehicleModelRegex)];
+    if (vehicleMatches) {
+      vehicleMatches.forEach(match => {
+        const model = match[0].toLowerCase();
+        if (!vehicleModels.includes(model)) {
+          vehicleModels.push(model);
+        }
+      });
+    }
   }
   
-  // Count occurrences of each topic
-  const topicCounts: Record<string, number> = {};
-  for (const topic of mainTopics) {
-    topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+  // Count occurrences of each product mention
+  const productCounts: Record<string, number> = {};
+  for (const product of productMentions) {
+    productCounts[product] = (productCounts[product] || 0) + 1;
   }
   
-  // Get the top 3 most frequent topics
-  const topTopics = Object.entries(topicCounts)
+  // Get the top 3 most frequent product mentions
+  const topProducts = Object.entries(productCounts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(entry => entry[0]);
   
-  // Create a context-preserving query
-  if (topTopics.length > 0) {
-    contextualQuestion = `Regarding ${topTopics.join(', ')}, ${currentMessage}`;
+  // Build a rich context string
+  let contextElements: string[] = [];
+  
+  // Add product mentions
+  if (topProducts.length > 0) {
+    contextElements.push(`products: ${topProducts.join(', ')}`);
   }
   
-  // For short questions like "what's the standard size?", add explicit context
-  if (currentMessage.length < 30 && recentMessages.length >= 2) {
-    const lastUserMessage = recentMessages.filter(msg => msg.role === 'user').slice(-2)[0];
-    const lastBotMessage = recentMessages.filter(msg => msg.role === 'assistant').slice(-1)[0];
+  // Add part numbers
+  if (partNumbers.length > 0) {
+    contextElements.push(`part numbers: ${partNumbers.join(', ')}`);
+  }
+  
+  // Add vehicle models
+  if (vehicleModels.length > 0) {
+    contextElements.push(`vehicles: ${vehicleModels.join(', ')}`);
+  }
+  
+  // Create a context-preserving query
+  if (contextElements.length > 0) {
+    contextualQuestion = `Regarding ${contextElements.join('; ')}, ${currentMessage}`;
+  }
+  
+  // For short questions or follow-ups, add explicit conversation context
+  if (currentMessage.length < 40 || !currentMessage.includes('?')) {
+    // Get the last 2 user messages and the last assistant message
+    const lastUserMessages = recentMessages
+      .filter(msg => msg.role === 'user')
+      .slice(-2);
     
-    if (lastUserMessage && lastBotMessage) {
-      contextualQuestion = `In the context of our conversation about ${topTopics.join(', ')}, where I previously asked "${lastUserMessage.content}" and you told me about "${lastBotMessage.content.substring(0, 50)}...", ${currentMessage}`;
+    const lastBotMessage = recentMessages
+      .filter(msg => msg.role === 'assistant')
+      .slice(-1)[0];
+    
+    if (lastUserMessages.length > 0 && lastBotMessage) {
+      // Create a more detailed context string
+      const userContext = lastUserMessages
+        .map(msg => `"${msg.content}"`)
+        .join(' and then ');
+      
+      const botContext = lastBotMessage.content.length > 100
+        ? `"${lastBotMessage.content.substring(0, 100)}..."`
+        : `"${lastBotMessage.content}"`;
+      
+      contextualQuestion = `In the context of our conversation where I previously asked ${userContext} and you told me about ${botContext}, my new question is: ${currentMessage}`;
     }
   }
   
@@ -87,17 +153,185 @@ function extractContextFromHistory(chatHistory: ChatMessage[], currentMessage: s
 }
 
 /**
+ * Extracts part numbers from chat history
+ */
+function extractPartNumbers(chatHistory: ChatMessage[]): string[] {
+  const partNumbers: string[] = [];
+  const partNumberRegex = /\b([A-Z0-9]{5,10})\b/g;
+  
+  for (const msg of chatHistory) {
+    const matches = [...msg.content.matchAll(partNumberRegex)];
+    if (matches) {
+      matches.forEach(match => {
+        if (match[1] && !partNumbers.includes(match[1])) {
+          partNumbers.push(match[1]);
+        }
+      });
+    }
+  }
+  
+  return partNumbers;
+}
+
+/**
+ * Extracts vehicle models from chat history
+ */
+function extractVehicleModels(chatHistory: ChatMessage[]): string[] {
+  const vehicleModels: string[] = [];
+  const vehicleModelRegex = /\b(\d{3})\s*(peterbilt|kenworth|freightliner|volvo|mack|international)\b|\b(peterbilt|kenworth|freightliner|volvo|mack|international)\s*(\d{3})\b/gi;
+  
+  for (const msg of chatHistory) {
+    const matches = [...msg.content.matchAll(vehicleModelRegex)];
+    if (matches) {
+      matches.forEach(match => {
+        const model = match[0].toLowerCase();
+        if (!vehicleModels.includes(model)) {
+          vehicleModels.push(model);
+        }
+      });
+    }
+  }
+  
+  return vehicleModels;
+}
+
+/**
+ * Extracts product types from chat history
+ */
+function extractProductTypes(chatHistory: ChatMessage[]): string[] {
+  const productTypes: string[] = [];
+  const productKeywords = [
+    'air spring', 'fuel tank', 'brake', 'belt', 'belts', 'fluid', 'oil', 'seal', 
+    'filter', 'engine', 'transmission', 'fasteners', 'hose', 'pump',
+    'exhaust', 'suspension', 'steering', 'axle', 'wheel', 'tire', 'light',
+    'battery', 'alternator', 'starter', 'radiator', 'clutch', 'driveshaft'
+  ];
+  
+  for (const msg of chatHistory) {
+    const content = msg.content.toLowerCase();
+    
+    for (const keyword of productKeywords) {
+      if (content.includes(keyword) && !productTypes.includes(keyword)) {
+        productTypes.push(keyword);
+      }
+    }
+  }
+  
+  return productTypes;
+}
+
+/**
+ * Helper function to delay execution
+ * @param ms Milliseconds to delay
+ */
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Detects if a response is from Anthropic and extracts the component data
+ * Anthropic responses typically have text followed by JSON
+ * @returns An object with the extracted component data and the cleaned text
+ */
+function processAnthropicResponse(text: string): { componentData: ComponentData | null, cleanedText: string } {
+  // Check if this looks like an Anthropic response (text followed by JSON)
+  const jsonStartIndex = text.indexOf('{');
+  if (jsonStartIndex <= 0) {
+    // Not an Anthropic response or JSON is at the beginning
+    return { componentData: null, cleanedText: text };
+  }
+  
+  try {
+    // Try to find the JSON part
+    let jsonEndIndex = -1;
+    let bracketCount = 0;
+    let inString = false;
+    
+    for (let i = jsonStartIndex; i < text.length; i++) {
+      const char = text[i];
+      
+      // Handle string boundaries
+      if (char === '"' && (i === 0 || text[i-1] !== '\\')) {
+        inString = !inString;
+      }
+      
+      // Only count brackets outside of strings
+      if (!inString) {
+        if (char === '{') bracketCount++;
+        if (char === '}') {
+          bracketCount--;
+          if (bracketCount === 0) {
+            jsonEndIndex = i + 1;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (jsonEndIndex === -1) {
+      // Couldn't find matching closing bracket
+      return { componentData: null, cleanedText: text };
+    }
+    
+    // Extract the JSON part
+    const jsonPart = text.substring(jsonStartIndex, jsonEndIndex);
+    
+    // Parse the JSON
+    const parsedData = JSON.parse(jsonPart);
+    
+    // Check if it's a valid component
+    if (parsedData && parsedData.component && parsedData.props) {
+      // Extract the text part (without the JSON)
+      const cleanedText = text.substring(0, jsonStartIndex).trim();
+      
+      return {
+        componentData: parsedData,
+        cleanedText
+      };
+    }
+  } catch (e) {
+    console.warn("Failed to process Anthropic response:", e);
+  }
+  
+  // Default return if anything fails
+  return { componentData: null, cleanedText: text };
+}
+
+/**
+ * Extracts JSON objects from text that may contain a mix of text and JSON
+ * This is particularly useful for handling Anthropic responses where text precedes JSON
+ */
+function extractJsonFromText(text: string): any | null {
+  // Look for patterns that might indicate JSON objects
+  const jsonRegex = /\{[\s\S]*\}/g;
+  const matches = text.match(jsonRegex);
+  
+  if (matches && matches.length > 0) {
+    try {
+      // Try to parse the first match as JSON
+      const jsonData = JSON.parse(matches[0]);
+      return jsonData;
+    } catch (e) {
+      console.warn("Failed to parse extracted JSON:", e);
+      return null;
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Sends a chat message to the n8n webhook for processing
+ * Includes retry mechanism for improved reliability
  */
 export async function sendChatMessage(
   message: string,
   chatHistory: ChatMessage[],
   tenantId: string,
   userId: string,
-  sessionId?: string
+  sessionId?: string,
+  maxRetries: number = 2 // Default to 2 retries
 ) {
   // Use the chat webhook URL from environment variables
-  const n8nChatWebhookUrl = process.env.N8N_CHAT_WEBHOOK_URL || process.env.N8N_CHAT_TEST_WEBHOOK_URL;
+  const n8nChatWebhookUrl = process.env.N8N_CHAT_TEST_WEBHOOK_URL || process.env.N8N_CHAT_TEST_WEBHOOK_URL;
 
   if (!n8nChatWebhookUrl) {
     console.warn("N8N_CHAT_WEBHOOK_URL and N8N_CHAT_TEST_WEBHOOK_URL not configured");
@@ -194,46 +428,87 @@ export async function sendChatMessage(
       },
       // Add query field for the n8n workflow with context preservation
       query: message,
-      // Add context field to help the AI maintain context after fallback mode
-      context: extractContextFromHistory(chatHistory, message)
+      // Add enhanced context field to help the AI maintain context
+      context: extractContextFromHistory(chatHistory, message),
+      // Add structured context data to help with entity recognition
+      contextData: {
+        recentMessages: chatHistory.slice(-6),
+        extractedEntities: {
+          partNumbers: extractPartNumbers(chatHistory),
+          vehicleModels: extractVehicleModels(chatHistory),
+          productTypes: extractProductTypes(chatHistory)
+        }
+      }
     };
     
     // Send the message to the webhook
     let responseData;
-    try {
-      console.log("Sending request to webhook with payload:", JSON.stringify(payload));
-      console.log("Using headers:", JSON.stringify(headers));
-      
-      const response = await axios.post(n8nChatWebhookUrl, payload, {
-        headers,
-        // Add timeout and additional options
-        timeout: 10000,
-        validateStatus: (status) => status < 500 // Don't throw for 4xx errors
-      });
-      
-      console.log("Webhook response status:", response.status);
-      console.log("Webhook response data:", JSON.stringify(response.data));
-      
-      // Log the type of response data for debugging
-      console.log("Webhook response data type:", typeof response.data);
-      if (Array.isArray(response.data)) {
-        console.log("Webhook response is an array with length:", response.data.length);
-        if (response.data.length > 0) {
-          console.log("First item in array:", JSON.stringify(response.data[0]));
-          console.log("First item type:", typeof response.data[0]);
+    let retries = 0;
+    let lastError: any = null;
+    
+    // Implement retry logic
+    while (retries <= maxRetries) {
+      try {
+        if (retries > 0) {
+          console.log(`Retry attempt ${retries}/${maxRetries} for webhook request...`);
+          // Exponential backoff: wait longer between each retry
+          await delay(1000 * Math.pow(2, retries - 1)); // 1s, 2s, 4s, etc.
         }
+        
+        console.log("Sending request to webhook with payload:", JSON.stringify(payload));
+        console.log("Using headers:", JSON.stringify(headers));
+        
+        const response = await axios.post(n8nChatWebhookUrl, payload, {
+          headers,
+          // Increased timeout to allow more time for webhook processing
+          timeout: 60000, // 60 seconds instead of 10 seconds
+          validateStatus: (status) => status < 500 // Don't throw for 4xx errors
+        });
+        
+        console.log("Webhook response status:", response.status);
+        console.log("Webhook response data:", JSON.stringify(response.data));
+        
+        // If we get here, the request was successful, so break out of the retry loop
+        lastError = null;
+        
+        // Log the type of response data for debugging
+        console.log("Webhook response data type:", typeof response.data);
+        if (Array.isArray(response.data)) {
+          console.log("Webhook response is an array with length:", response.data.length);
+          if (response.data.length > 0) {
+            console.log("First item in array:", JSON.stringify(response.data[0]));
+            console.log("First item type:", typeof response.data[0]);
+          }
+        }
+        
+        responseData = response.data;
+        break; // Exit the retry loop on success
+      
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`Webhook error (attempt ${retries + 1}/${maxRetries + 1}):`, error.message);
+        
+        // If we've reached the maximum number of retries, handle the error
+        if (retries >= maxRetries) {
+          console.error("Maximum retries reached. Full error:", error);
+          
+          // Create a more specific message based on the error type
+          let fallbackMessage = "I'm currently operating in fallback mode. The AI service is temporarily unavailable, but I've saved your message and will process it when the service is restored.";
+          
+          // Add specific handling for timeout errors
+          if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+            fallbackMessage = "I apologize, but the request is taking longer than expected to process. Your message has been saved and will be processed when the service is available. Please try again in a moment.";
+          }
+          
+          // Use a fallback response
+          responseData = {
+            message: fallbackMessage,
+            isFallbackMode: true // Add a flag to indicate fallback mode
+          };
+        }
+        
+        retries++;
       }
-      
-      responseData = response.data;
-    } catch (error: any) {
-      console.warn("Webhook error:", error.message);
-      console.error("Full error:", error);
-      
-      // Use a fallback response when the webhook is unavailable
-      responseData = {
-        message: "I'm currently operating in fallback mode. The AI service is temporarily unavailable, but I've saved your message and will process it when the service is restored.",
-        isFallbackMode: true // Add a flag to indicate fallback mode
-      };
     }
     
     // Create a chat message from the response
@@ -244,11 +519,38 @@ export async function sendChatMessage(
     if (typeof responseData === 'string') {
       // Handle string response
       try {
-        // Check if it's a JSON string containing component data
-        const parsedData = JSON.parse(responseData);
+        // Check if the string starts with triple backticks for code blocks
+        let jsonString = responseData;
+        if (responseData.trim().startsWith('```json')) {
+          // Extract the JSON content from the code block
+          jsonString = responseData.trim()
+            .replace(/^```json\n/, '')
+            .replace(/\n```$/, '');
+        }
+        
+        // Parse the JSON content
+        const parsedData = JSON.parse(jsonString);
         if (parsedData.component && parsedData.props) {
           componentData = parsedData;
-          responseContent = parsedData.props.text || "Component response";
+          
+          // Handle different component types
+          if (parsedData.component === "SimpleText") {
+            responseContent = parsedData.props.text || "Component response";
+          } else if (parsedData.component === "ProductSpecs") {
+            // Extract text from ProductSpecs component
+            const intro = parsedData.props.introduction || "";
+            const specs = parsedData.props.specs || [];
+            const note = parsedData.props.note || "";
+            
+            // Format specs into readable text
+            const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");
+            
+            // Combine all parts into a coherent response
+            responseContent = `${intro}\n\n${specsText}${note ? "\n\n" + note : ""}`;
+          } else {
+            // Default fallback for other component types
+            responseContent = parsedData.props.text || JSON.stringify(parsedData.props) || "Component response";
+          }
         } else {
           responseContent = responseData || "";
         }
@@ -269,17 +571,60 @@ export async function sendChatMessage(
         // Try to parse the output as JSON if it's a string
         if (webhookOutput && typeof webhookOutput === 'string') {
           try {
-            // Check if it's a JSON string containing component data
-            const parsedOutput = JSON.parse(webhookOutput);
-            if (parsedOutput.component && parsedOutput.props) {
-              // Store component data for rendering
-              componentData = parsedOutput;
-              // Extract text content for message history
-              responseContent = parsedOutput.props.text || "Component response";
+            // First check if this is an Anthropic response (text followed by JSON)
+            const anthropicResult = processAnthropicResponse(webhookOutput);
+            if (anthropicResult.componentData) {
+              // It's an Anthropic response
+              console.log("Detected Anthropic response format");
+              componentData = anthropicResult.componentData;
+              responseContent = anthropicResult.cleanedText;
             } else {
-              responseContent = webhookOutput;
+              // Not an Anthropic response, proceed with original logic
+              // Check if the string starts with triple backticks for code blocks
+              let jsonString = webhookOutput;
+              if (webhookOutput.trim().startsWith('```json')) {
+                // Extract the JSON content from the code block
+                jsonString = webhookOutput.trim()
+                  .replace(/^```json\n/, '')
+                  .replace(/\n```$/, '');
+              }
+              
+              // Try to parse the entire string as JSON
+              try {
+                const parsedOutput = JSON.parse(jsonString);
+                if (parsedOutput.component && parsedOutput.props) {
+                  // Store component data for rendering
+                  componentData = parsedOutput;
+                  console.log("Successfully extracted component data:", parsedOutput.component);
+                  
+                  // Handle different component types
+                  if (parsedOutput.component === "SimpleText") {
+                    responseContent = parsedOutput.props.text || "Component response";
+                  } else if (parsedOutput.component === "ProductSpecs") {
+                    // Extract text from ProductSpecs component
+                    const intro = parsedOutput.props.introduction || "";
+                    const specs = parsedOutput.props.specs || [];
+                    const note = parsedOutput.props.note || "";
+                    
+                    // Format specs into readable text
+                    const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");
+                    
+                    // Combine all parts into a coherent response
+                    responseContent = `${intro}\n\n${specsText}${note ? "\n\n" + note : ""}`;
+                  } else {
+                    // Default fallback for other component types
+                    responseContent = parsedOutput.props.text || JSON.stringify(parsedOutput.props) || "Component response";
+                  }
+                } else {
+                  responseContent = webhookOutput;
+                }
+              } catch (e) {
+                // If it's not valid JSON, use it as-is
+                responseContent = webhookOutput;
+              }
             }
           } catch (e) {
+            console.error("Error processing webhook output:", e);
             // If it's not valid JSON, use it as-is
             responseContent = webhookOutput;
           }
@@ -290,22 +635,74 @@ export async function sendChatMessage(
         // Try to parse the output as JSON if it's a string
         if (typeof firstItem.output === 'string') {
           try {
-            // Check if it's a JSON string containing component data
-            const parsedOutput = JSON.parse(firstItem.output);
-            if (parsedOutput.component && parsedOutput.props) {
-              // Store component data for rendering
-              componentData = parsedOutput;
-              // Extract text content for message history
-              responseContent = parsedOutput.props.text || "Component response";
+            // First check if this is an Anthropic response (text followed by JSON)
+            const anthropicResult = processAnthropicResponse(firstItem.output);
+            if (anthropicResult.componentData) {
+              // It's an Anthropic response
+              console.log("Detected Anthropic response format");
+              componentData = anthropicResult.componentData;
+              responseContent = anthropicResult.cleanedText;
             } else {
-              responseContent = firstItem.output;
+              // Not an Anthropic response, proceed with original logic
+              // Check if the string starts with triple backticks for code blocks
+              let jsonString = firstItem.output;
+              if (firstItem.output.trim().startsWith('```json')) {
+                // Extract the JSON content from the code block
+                jsonString = firstItem.output.trim()
+                  .replace(/^```json\n/, '')
+                  .replace(/\n```$/, '');
+              }
+              
+              // Try to parse the entire string as JSON
+              try {
+                const parsedOutput = JSON.parse(jsonString);
+                if (parsedOutput.component && parsedOutput.props) {
+                  // Store component data for rendering
+                  componentData = parsedOutput;
+                  console.log("Successfully extracted component data:", parsedOutput.component);
+                  
+                  // Handle different component types
+                  if (parsedOutput.component === "SimpleText") {
+                    responseContent = parsedOutput.props.text || "Component response";
+                  } else if (parsedOutput.component === "ProductSpecs") {
+                    // Extract text from ProductSpecs component
+                    const intro = parsedOutput.props.introduction || "";
+                    const specs = parsedOutput.props.specs || [];
+                    const note = parsedOutput.props.note || "";
+                    
+                    // Format specs into readable text
+                    const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");
+                    
+                    // Combine all parts into a coherent response
+                    responseContent = `${intro}\n\n${specsText}${note ? "\n\n" + note : ""}`;
+                  } else {
+                    // Default fallback for other component types
+                    responseContent = parsedOutput.props.text || JSON.stringify(parsedOutput.props) || "Component response";
+                  }
+                } else {
+                  responseContent = firstItem.output;
+                }
+              } catch (e) {
+                // If it's not valid JSON, use it as-is
+                responseContent = firstItem.output;
+              }
             }
           } catch (e) {
+            console.error("Error processing firstItem.output:", e);
             // If it's not valid JSON, use it as-is
             responseContent = firstItem.output;
           }
+        } else if (typeof firstItem.output === 'object' && firstItem.output !== null) {
+          // Handle direct object output
+          if (firstItem.output.component && firstItem.output.props) {
+            componentData = firstItem.output;
+            responseContent = firstItem.output.props.text || "Component response";
+          } else {
+            // Convert object to string if it's not a component
+            responseContent = JSON.stringify(firstItem.output);
+          }
         } else {
-          responseContent = firstItem.output;
+          responseContent = String(firstItem.output || "");
         }
       } else if (firstItem.response) {
         responseContent = firstItem.response;
@@ -327,22 +724,74 @@ export async function sendChatMessage(
           // Try to parse the output as JSON if it's a string
           if (typeof webhookResponse.output === 'string') {
             try {
-              // Check if it's a JSON string containing component data
-              const parsedOutput = JSON.parse(webhookResponse.output);
-              if (parsedOutput.component && parsedOutput.props) {
-                // Store component data for rendering
-                componentData = parsedOutput;
-                // Extract text content for message history
-                responseContent = parsedOutput.props.text || "Component response";
+              // First check if this is an Anthropic response (text followed by JSON)
+              const anthropicResult = processAnthropicResponse(webhookResponse.output);
+              if (anthropicResult.componentData) {
+                // It's an Anthropic response
+                console.log("Detected Anthropic response format");
+                componentData = anthropicResult.componentData;
+                responseContent = anthropicResult.cleanedText;
               } else {
-                responseContent = webhookResponse.output;
+                // Not an Anthropic response, proceed with original logic
+                // Check if the string starts with triple backticks for code blocks
+                let jsonString = webhookResponse.output;
+                if (webhookResponse.output.trim().startsWith('```json')) {
+                  // Extract the JSON content from the code block
+                  jsonString = webhookResponse.output.trim()
+                    .replace(/^```json\n/, '')
+                    .replace(/\n```$/, '');
+                }
+                
+                // Try to parse the entire string as JSON
+                try {
+                  const parsedOutput = JSON.parse(jsonString);
+                  if (parsedOutput.component && parsedOutput.props) {
+                    // Store component data for rendering
+                    componentData = parsedOutput;
+                    console.log("Successfully extracted component data:", parsedOutput.component);
+                    
+                    // Handle different component types
+                    if (parsedOutput.component === "SimpleText") {
+                      responseContent = parsedOutput.props.text || "Component response";
+                    } else if (parsedOutput.component === "ProductSpecs") {
+                      // Extract text from ProductSpecs component
+                      const intro = parsedOutput.props.introduction || "";
+                      const specs = parsedOutput.props.specs || [];
+                      const note = parsedOutput.props.note || "";
+                      
+                      // Format specs into readable text
+                      const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");
+                      
+                      // Combine all parts into a coherent response
+                      responseContent = `${intro}\n\n${specsText}${note ? "\n\n" + note : ""}`;
+                    } else {
+                      // Default fallback for other component types
+                      responseContent = parsedOutput.props.text || JSON.stringify(parsedOutput.props) || "Component response";
+                    }
+                  } else {
+                    responseContent = webhookResponse.output;
+                  }
+                } catch (e) {
+                  // If it's not valid JSON, use it as-is
+                  responseContent = webhookResponse.output;
+                }
               }
             } catch (e) {
+              console.error("Error processing webhookResponse.output:", e);
               // If it's not valid JSON, use it as-is
               responseContent = webhookResponse.output;
             }
+          } else if (typeof webhookResponse.output === 'object' && webhookResponse.output !== null) {
+            // Handle direct object output
+            if (webhookResponse.output.component && webhookResponse.output.props) {
+              componentData = webhookResponse.output;
+              responseContent = webhookResponse.output.props.text || "Component response";
+            } else {
+              // Convert object to string if it's not a component
+              responseContent = JSON.stringify(webhookResponse.output);
+            }
           } else {
-            responseContent = webhookResponse.output;
+            responseContent = String(webhookResponse.output || "");
           }
         } else if (webhookResponse.response) {
           responseContent = webhookResponse.response;
