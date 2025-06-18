@@ -331,7 +331,7 @@ export async function sendChatMessage(
   maxRetries: number = 2 // Default to 2 retries
 ) {
   // Use the chat webhook URL from environment variables
-  const n8nChatWebhookUrl = process.env.N8N_CHAT_TEST_WEBHOOK_URL || process.env.N8N_CHAT_TEST_WEBHOOK_URL;
+  const n8nChatWebhookUrl = process.env.N8N_CHAT_WEBHOOK_URL || process.env.N8N_CHAT_TEST_WEBHOOK_URL;
 
   if (!n8nChatWebhookUrl) {
     console.warn("N8N_CHAT_WEBHOOK_URL and N8N_CHAT_TEST_WEBHOOK_URL not configured");
