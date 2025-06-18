@@ -102,23 +102,100 @@ export async function POST(
         });
       }
     } else {
-      // Create a new conversation
-      conversation = await prisma.conversation.create({
-        data: {
-          title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
+      // Check for recent conversations with the same message to prevent duplicates
+      // This helps when users retry after timeouts
+      const recentConversations = await prisma.conversation.findMany({
+        where: {
           tenantId: tenantId,
           userId: session.user.id,
+          createdAt: {
+            // Look for conversations created in the last 5 minutes
+            gte: new Date(Date.now() - 5 * 60 * 1000)
+          }
         },
+        include: {
+          messages: {
+            where: {
+              role: "USER"
+            },
+            orderBy: {
+              createdAt: "asc"
+            },
+            take: 1
+          }
+        },
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 5 // Check the 5 most recent conversations
       });
       
-      // If this is a retry for a new conversation, add a system message
-      if (isRetry) {
-        chatHistory.unshift({
-          role: "system",
-          content: `This is a retry after a temporary service disruption. The user's question is: "${message}". Please provide a relevant response.`,
-          timestamp: new Date().toISOString(),
+      // Look for a conversation that starts with the same message
+      const existingConversation = recentConversations.find(conv =>
+        conv.messages.length > 0 &&
+        conv.messages[0].content.toLowerCase() === message.toLowerCase()
+      );
+      
+      if (existingConversation) {
+        // Use the existing conversation instead of creating a new one
+        console.log(`Found existing conversation with the same message: ${existingConversation.id}`);
+        conversation = await prisma.conversation.findUnique({
+          where: {
+            id: existingConversation.id
+          },
+          include: {
+            messages: {
+              orderBy: {
+                createdAt: "asc",
+              },
+            },
+          },
         });
+        
+        // Convert messages to ChatMessage format if conversation exists
+        if (conversation) {
+          chatHistory = conversation.messages.map(msg => ({
+            role: msg.role === "USER" ? "user" : msg.role === "ASSISTANT" ? "assistant" : "system",
+            content: msg.content,
+            timestamp: msg.createdAt.toISOString(),
+          }));
+        }
+        
+        // Add a system message to indicate this is a retry
+        if (isRetry) {
+          chatHistory.unshift({
+            role: "system",
+            content: `This is a retry after a temporary service disruption. The user's question is: "${message}". Please provide a relevant response.`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } else {
+        // Create a new conversation if no matching one was found
+        conversation = await prisma.conversation.create({
+          data: {
+            title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
+            tenantId: tenantId,
+            userId: session.user.id,
+          },
+        });
+        
+        // If this is a retry for a new conversation, add a system message
+        if (isRetry) {
+          chatHistory.unshift({
+            role: "system",
+            content: `This is a retry after a temporary service disruption. The user's question is: "${message}". Please provide a relevant response.`,
+            timestamp: new Date().toISOString(),
+          });
+        }
       }
+    }
+
+    // Ensure we have a valid conversation
+    if (!conversation) {
+      return NextResponse.json(
+        { error: "Failed to create or retrieve conversation" },
+        { status: 500 }
+      );
     }
 
     // Store the user message in the database
@@ -155,7 +232,7 @@ export async function POST(
     });
 
     // Update conversation title if it's a new conversation
-    if (!conversationId && conversation.title && conversation.title.includes("...")) {
+    if (!conversationId && conversation && conversation.title && conversation.title.includes("...")) {
       await prisma.conversation.update({
         where: { id: conversation.id },
         data: { title: message.substring(0, 50) + (message.length > 50 ? "..." : "") },

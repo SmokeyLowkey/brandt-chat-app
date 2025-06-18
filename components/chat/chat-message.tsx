@@ -23,11 +23,43 @@ function SimpleText({ text }: { text: string }) {
   return <p className="mb-1.5">{text}</p>;
 }
 
+// Product specs component for rendering structured product information
+function ProductSpecs({ introduction, specs, note }: {
+  introduction: string;
+  specs: Array<{ key: string; value: string }>;
+  note?: string;
+}) {
+  return (
+    <div className="mb-2">
+      {introduction && <p className="mb-2 font-medium">{introduction}</p>}
+      
+      <div className="bg-gray-50 rounded-md p-3 mb-2">
+        {specs.map((spec, index) => (
+          <div key={index} className={`flex ${index !== specs.length - 1 ? 'border-b border-gray-200 pb-2 mb-2' : ''}`}>
+            <div className="w-1/3 font-medium text-gray-700">{spec.key}</div>
+            <div className="w-2/3 text-gray-900">{spec.value}</div>
+          </div>
+        ))}
+      </div>
+      
+      {note && <p className="text-sm text-gray-600 italic">{note}</p>}
+    </div>
+  );
+}
+
 // Function to render the appropriate component based on componentData
 function renderComponent(componentData: ComponentData) {
   switch (componentData.component) {
     case 'SimpleText':
       return <SimpleText text={componentData.props.text} />;
+    case 'ProductSpecs':
+      return (
+        <ProductSpecs
+          introduction={componentData.props.introduction || ''}
+          specs={componentData.props.specs || []}
+          note={componentData.props.note}
+        />
+      );
     default:
       return <p className="mb-2 text-amber-600">Unknown component type: {componentData.component}</p>;
   }

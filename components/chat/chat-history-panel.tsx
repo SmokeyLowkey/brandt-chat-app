@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useTenant } from "@/providers/tenant-provider";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, MessageSquare, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNotifications } from "@/hooks/use-notifications";
 
 interface Conversation {
   id: string;
@@ -29,33 +30,64 @@ export default function ChatHistoryPanel({
 }: ChatHistoryPanelProps) {
   const { data: session } = useSession();
   const { tenantId } = useTenant();
+  const { notifications } = useNotifications();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch conversations
-  useEffect(() => {
-    const fetchConversations = async () => {
-      if (!session || !tenantId) return;
+  // Fetch conversations function
+  const fetchConversations = useCallback(async () => {
+    if (!session || !tenantId) return;
 
-      try {
-        setIsLoading(true);
-        const response = await fetch(`/api/tenants/${tenantId}/conversations`);
-        
-        if (!response.ok) {
-          throw new Error("Failed to fetch conversations");
-        }
-        
-        const data = await response.json();
-        setConversations(data);
-      } catch (error) {
-        console.error("Error fetching conversations:", error);
-      } finally {
-        setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/tenants/${tenantId}/conversations`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch conversations");
       }
-    };
-
-    fetchConversations();
+      
+      const data = await response.json();
+      setConversations(data);
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }, [session, tenantId]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchConversations();
+  }, [fetchConversations]);
+  
+  // Listen for conversation deletion notifications
+  useEffect(() => {
+    if (!notifications || notifications.length === 0) return;
+    
+    // Check for conversation deletion notifications
+    const deletionNotifications = notifications.filter(
+      notification => notification.type === "CONVERSATION_DELETED"
+    );
+    
+    if (deletionNotifications.length > 0) {
+      // Process each deletion notification
+      deletionNotifications.forEach(notification => {
+        const deletedConversationId = notification.metadata?.conversationId;
+        
+        if (deletedConversationId) {
+          // Remove the deleted conversation from the list
+          setConversations(prevConversations =>
+            prevConversations.filter(conv => conv.id !== deletedConversationId)
+          );
+          
+          // If the deleted conversation is currently selected, trigger a new conversation
+          if (selectedConversationId === deletedConversationId) {
+            onNewConversation();
+          }
+        }
+      });
+    }
+  }, [notifications, selectedConversationId, onNewConversation]);
 
   // Format date to readable format
   const formatDate = (dateString: string) => {
@@ -154,6 +186,7 @@ export default function ChatHistoryPanel({
                 onClick={(e) => {
                   e.stopPropagation();
                   onDeleteConversation(conversation.id);
+                  // Note: We don't need to update the UI here as it will be handled by the notification system
                 }}
               >
                 <Trash2 className="h-3 w-3" />

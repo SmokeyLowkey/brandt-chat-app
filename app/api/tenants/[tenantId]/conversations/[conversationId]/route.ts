@@ -102,6 +102,22 @@ export async function DELETE(
       },
     });
 
+    // Create a notification for real-time updates
+    await prisma.notification.create({
+      data: {
+        type: "CONVERSATION_DELETED",
+        title: "Conversation deleted",
+        message: "A conversation has been deleted",
+        metadata: {
+          conversationId: conversationId,
+          tenantId: tenantId,
+          userId: session.user.id
+        },
+        tenantId: tenantId,
+        userId: session.user.id,
+      },
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting conversation:", error);
