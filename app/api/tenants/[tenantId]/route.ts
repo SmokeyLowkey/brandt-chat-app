@@ -85,6 +85,15 @@ export async function PATCH(
         id: tenantId,
       },
       data: updateData,
+      include: {
+        _count: {
+          select: {
+            users: true,
+            documents: true,
+            conversations: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json(tenant);

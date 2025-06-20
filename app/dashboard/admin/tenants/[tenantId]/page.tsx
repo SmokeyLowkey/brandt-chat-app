@@ -142,6 +142,21 @@ export default function TenantDetailsPage({
       if (response.ok) {
         const data = await response.json();
         setTenant(data);
+        
+        // Update form data with the response to ensure consistency
+        setFormData({
+          name: data.name,
+          domain: data.domain || "",
+          settings: {
+            theme: data.settings?.theme || "light",
+            features: {
+              documentUpload: data.settings?.features?.documentUpload !== undefined ? data.settings.features.documentUpload : true,
+              analytics: data.settings?.features?.analytics !== undefined ? data.settings.features.analytics : true,
+            },
+            documentNamespaces: Array.isArray(data.settings?.documentNamespaces) ? data.settings.documentNamespaces : [],
+          },
+        });
+        
         toast.success("Tenant updated successfully");
       } else {
         const error = await response.text();
