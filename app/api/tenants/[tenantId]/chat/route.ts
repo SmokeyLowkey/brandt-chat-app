@@ -138,7 +138,7 @@ export async function POST(
       
       if (existingConversation) {
         // Use the existing conversation instead of creating a new one
-        console.log(`Found existing conversation with the same message: ${existingConversation.id}`);
+        // console.log(`Found existing conversation with the same message: ${existingConversation.id}`);
         conversation = await prisma.conversation.findUnique({
           where: {
             id: existingConversation.id

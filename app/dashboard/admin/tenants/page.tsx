@@ -112,7 +112,7 @@ export default function TenantsPage() {
       }
     };
     
-    console.log("Creating tenant with data:", tenantData);
+    // console.log("Creating tenant with data:", tenantData);
     
     try {
       toast.info("Submitting tenant creation request...");
@@ -125,11 +125,11 @@ export default function TenantsPage() {
         body: JSON.stringify(tenantData),
       });
 
-      console.log("Response status:", response.status);
+      // console.log("Response status:", response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("Tenant created successfully:", data);
+        // console.log("Tenant created successfully:", data);
         
         // Add _count property to the new tenant if it doesn't exist
         const newTenantWithCount = {

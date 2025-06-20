@@ -6,12 +6,12 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 // This is a test endpoint to verify database connectivity and document creation
 export async function GET(req: NextRequest) {
   try {
-    console.log("Test DB - Starting database test");
+    // console.log("Test DB - Starting database test");
     
     // Test basic database connectivity
-    console.log("Test DB - Testing database connection...");
+    // console.log("Test DB - Testing database connection...");
     const connectionTest = await prisma.$queryRaw`SELECT 1 as connection_test`;
-    console.log("Test DB - Connection test result:", connectionTest);
+    // console.log("Test DB - Connection test result:", connectionTest);
     
     // Get session to get user and tenant info
     const session = await getServerSession(authOptions);
@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
     const userId = session.user.id;
     const tenantId = session.user.tenantId;
     
-    console.log("Test DB - User ID:", userId);
-    console.log("Test DB - Tenant ID:", tenantId);
+    // console.log("Test DB - User ID:", userId);
+    // console.log("Test DB - Tenant ID:", tenantId);
     
     // List all tables in the database
     const tables = await prisma.$queryRaw`
@@ -31,16 +31,16 @@ export async function GET(req: NextRequest) {
       FROM information_schema.tables 
       WHERE table_schema = 'public'
     `;
-    console.log("Test DB - Database tables:", tables);
+    // console.log("Test DB - Database tables:", tables);
     
     // Check if documents table exists and has records
     const documentCount = await prisma.$queryRaw`
       SELECT COUNT(*) FROM documents
     `;
-    console.log("Test DB - Document count:", documentCount);
+    // console.log("Test DB - Document count:", documentCount);
     
     // Try to create a test document using Prisma
-    console.log("Test DB - Creating test document with Prisma...");
+    // console.log("Test DB - Creating test document with Prisma...");
     const testDocument = await prisma.document.create({
       data: {
         name: "Test Document",
@@ -58,10 +58,10 @@ export async function GET(req: NextRequest) {
       }
     });
     
-    console.log("Test DB - Prisma document created:", testDocument);
+    // console.log("Test DB - Prisma document created:", testDocument);
     
     // Try to create a test document using raw SQL
-    console.log("Test DB - Creating test document with raw SQL...");
+    // console.log("Test DB - Creating test document with raw SQL...");
     
     // Generate a UUID for the document
     const uuidResult: any = await prisma.$queryRaw`SELECT gen_random_uuid() as uuid`;
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
       )
     `;
     
-    console.log("Test DB - SQL document created with ID:", documentId);
+    // console.log("Test DB - SQL document created with ID:", documentId);
     
     // Fetch all documents for this tenant to verify creation
     const documents = await prisma.document.findMany({
@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
       take: 10
     });
     
-    console.log("Test DB - Recent documents:", documents.map(d => ({ id: d.id, name: d.name })));
+    // console.log("Test DB - Recent documents:", documents.map(d => ({ id: d.id, name: d.name })));
     
     return NextResponse.json({
       success: true,

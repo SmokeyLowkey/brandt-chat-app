@@ -72,7 +72,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           }
         }
       } catch (error) {
-        console.error("Error fetching tenant settings:", error);
+        // console.error("Error fetching tenant settings:", error);
       }
     };
     
@@ -200,7 +200,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
       // Return the document ID
       return document.documentId || null;
     } catch (error: any) {
-      console.error(`Error uploading ${file.name}:`, error);
+      // console.error(`Error uploading ${file.name}:`, error);
       
       // Update progress to show error
       setUploadProgress(prev => ({
@@ -250,6 +250,31 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
                 <li key={index}>{file.name}</li>
               ))}
               {nonPdfFiles.length > 3 && <li>...and {nonPdfFiles.length - 3} more</li>}
+            </ul>
+          )}
+        </div>,
+        {
+          duration: 5000,
+        }
+      );
+      return;
+    }
+
+    // Check for files exceeding the 20 MB size limit
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB in bytes
+    const oversizedFiles = selectedFiles.filter(file => file.size > MAX_FILE_SIZE);
+
+    if (oversizedFiles.length > 0) {
+      toast.error(
+        <div className="flex flex-col gap-1">
+          <p className="font-medium">File size exceeds limit</p>
+          <p className="text-sm">Files must be under 20 MB.</p>
+          {oversizedFiles.length > 0 && (
+            <ul className="text-xs mt-1 list-disc pl-4">
+              {oversizedFiles.slice(0, 3).map((file, index) => (
+                <li key={index}>{file.name} ({(file.size / (1024 * 1024)).toFixed(2)} MB)</li>
+              ))}
+              {oversizedFiles.length > 3 && <li>...and {oversizedFiles.length - 3} more</li>}
             </ul>
           )}
         </div>,
@@ -316,7 +341,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
         setUploadComplete(false);
       }, 7000);
     } catch (error: any) {
-      console.error("Upload error:", error);
+      // console.error("Upload error:", error);
       
       setIsUploading(false);
       setCurrentUploadId(null);
@@ -388,7 +413,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           <div>
             <p className="font-medium">Upload documents</p>
             <p className="text-sm text-gray-500 mt-1">
-              Supported formats: PDF only (up to 16MB)
+              Supported formats: PDF only (up to 20MB)
             </p>
           </div>
           

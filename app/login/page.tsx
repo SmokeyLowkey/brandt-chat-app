@@ -47,9 +47,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-3xl font-bold text-[#E31937] mb-2">BRANDT</div>
-          <h1 className="text-2xl font-semibold text-gray-900">Welcome back</h1>
-          <p className="text-gray-600">Sign in to access the chatbot dashboard</p>
+          <div className="text-3xl font-bold text-[#E31937] mb-2">PartsIQ</div>
+          <h1 className="text-2xl font-semibold text-gray-900">Welcome to PartsIQ</h1>
+          <p className="text-gray-600">Sign in to access your parts documentation intelligence platform</p>
         </div>
 
         <Card>
@@ -64,7 +64,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="name@brandt.com"
+                  placeholder="name@partsiq.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -106,8 +106,9 @@ export default function LoginPage() {
         <div className="text-center mt-6 text-sm text-gray-600">
           Need help? Contact{" "}
           <a href="#" className="text-[#E31937] hover:underline">
-            IT Support
+            PartsIQ Support
           </a>
+          {" "} or call 1-800-PARTS-AI
         </div>
       </div>
     </div>

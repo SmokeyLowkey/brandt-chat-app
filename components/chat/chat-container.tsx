@@ -157,11 +157,11 @@ export default function ChatContainer() {
 
       // Check if we're in fallback mode
       if (responseData.isFallbackMode === true) {
-        console.log("Detected fallback mode response");
+        // console.log("Detected fallback mode response");
         
         // If this is already a retry and we've reached the max retry count, just show the fallback message
         if (isRetry && retryCount >= 2) {
-          console.log(`Max retry count (${retryCount}) reached, showing fallback message`);
+          // console.log(`Max retry count (${retryCount}) reached, showing fallback message`);
           
           const fallbackMessage: Message = {
             role: "assistant",
@@ -188,7 +188,7 @@ export default function ChatContainer() {
           
           // Schedule a retry after a delay
           setTimeout(() => {
-            console.log(`Retrying message, attempt ${retryCount + 1}`);
+            // console.log(`Retrying message, attempt ${retryCount + 1}`);
             
             // For better context preservation, if this is a short question,
             // we can enhance it with context from previous messages
@@ -207,7 +207,7 @@ export default function ChatContainer() {
                 // Create a context-enhanced message
                 enhancedMessage = `Continuing our conversation about ${prevUserMessage.content.substring(0, 50)}... where you previously told me about ${prevAssistantMessage.content.substring(0, 50)}..., ${messageText}`;
                 
-                console.log("Enhanced retry message with context:", enhancedMessage);
+                // console.log("Enhanced retry message with context:", enhancedMessage);
               }
             }
             
@@ -231,7 +231,7 @@ export default function ChatContainer() {
       } else {
         // If no content, keep loading state active
         // This will show the typing animation
-        console.log("Empty response from API, keeping loading state active");
+        // console.log("Empty response from API, keeping loading state active");
         
         // Try again after a short delay
         setTimeout(() => {

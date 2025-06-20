@@ -27,17 +27,17 @@ export async function GET(
     })
 
     
-    console.log("API - User:", {
-      id: user?.id,
-      email: user?.email,
-      role: user?.role,
-      tenantId: user?.tenantId
-    })
-    console.log("API - Requested tenantId:", tenantId)
+    // console.log("API - User:", {
+    //   id: user?.id,
+    //   email: user?.email,
+    //   role: user?.role,
+    //   tenantId: user?.tenantId
+    // })
+    // console.log("API - Requested tenantId:", tenantId)
     
     // Allow admins to access any tenant, but restrict other users to their assigned tenant
     if (!user || (user.role !== "ADMIN" && user.tenantId !== tenantId)) {
-      console.log("API - Access denied: User tenant doesn't match requested tenant and user is not an admin")
+      // console.log("API - Access denied: User tenant doesn't match requested tenant and user is not an admin")
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -73,9 +73,9 @@ export async function GET(
       },
     })
     
-    console.log("API GET /documents - Found documents:", documents.length)
-    console.log("API GET /documents - Document IDs:", documents.map(doc => doc.id))
-    console.log("API GET /documents - First few documents:", documents.slice(0, 2))
+    // console.log("API GET /documents - Found documents:", documents.length)
+    // console.log("API GET /documents - Document IDs:", documents.map(doc => doc.id))
+    // console.log("API GET /documents - First few documents:", documents.slice(0, 2))
 
     return NextResponse.json(documents)
   } catch (error) {
@@ -112,7 +112,7 @@ export async function POST(
     
     // Allow admins to access any tenant, but restrict other users to their assigned tenant
     if (!user || (user.role !== "ADMIN" && user.tenantId !== tenantId)) {
-      console.log("API - Access denied: User tenant doesn't match requested tenant and user is not an admin")
+      // console.log("API - Access denied: User tenant doesn't match requested tenant and user is not an admin")
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

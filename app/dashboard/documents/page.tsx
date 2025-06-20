@@ -30,13 +30,13 @@ export default function DocumentsPage() {
         setIsLoading(true)
         
         // Fetch documents using the service with the tenant ID from useTenant
-        console.log("Fetching documents for tenantId:", tenantId)
-        console.log("Current tenant name:", tenantName)
-        console.log("Current user role:", session.user.role)
-        console.log("Current user ID:", session.user.id)
+        // console.log("Fetching documents for tenantId:", tenantId)
+        // console.log("Current tenant name:", tenantName)
+        // console.log("Current user role:", session.user.role)
+        // console.log("Current user ID:", session.user.id)
         
         const data = await DocumentService.getDocuments(tenantId, searchQuery)
-        console.log("Documents fetched:", data)
+        // console.log("Documents fetched:", data)
         setDocuments(data)
       } catch (error) {
         console.error(error)

@@ -6,7 +6,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 // This endpoint creates a test document directly in the database
 export async function GET(req: NextRequest) {
   try {
-    console.log("Create Test Document - Starting");
+    // console.log("Create Test Document - Starting");
     
     // Get session to get user and tenant info
     const session = await getServerSession(authOptions);
@@ -17,11 +17,11 @@ export async function GET(req: NextRequest) {
     const userId = session.user.id;
     const tenantId = session.user.tenantId;
     
-    console.log("Create Test Document - User ID:", userId);
-    console.log("Create Test Document - Tenant ID:", tenantId);
+    // console.log("Create Test Document - User ID:", userId);
+    // console.log("Create Test Document - Tenant ID:", tenantId);
     
     // Create a test document using Prisma
-    console.log("Create Test Document - Creating test document with Prisma...");
+    // console.log("Create Test Document - Creating test document with Prisma...");
     
     // Generate a random file key for S3 that includes the filename
     const filename = "Test Document.pdf";
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       }
     });
     
-    console.log("Create Test Document - Document created:", document);
+    // console.log("Create Test Document - Document created:", document);
     
     // Redirect to the documents page
     return NextResponse.redirect(new URL("/dashboard/documents", req.url));

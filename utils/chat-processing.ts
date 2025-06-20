@@ -345,7 +345,7 @@ export async function sendChatMessage(
     };
   }
 
-  console.log("Using webhook URL:", n8nChatWebhookUrl);
+  // console.log("Using webhook URL:", n8nChatWebhookUrl);
 
   // Use the JWT_SECRET and JWT_ALGORITHM directly from environment variables
   const jwtSecret = process.env.JWT_SECRET;
@@ -360,7 +360,7 @@ export async function sendChatMessage(
     };
   }
 
-  console.log(`Using JWT algorithm: ${jwtAlgorithm}`);
+  // console.log(`Using JWT algorithm: ${jwtAlgorithm}`);
 
   try {
     // Import axios dynamically to avoid issues with SSR
@@ -473,13 +473,13 @@ export async function sendChatMessage(
     while (retries <= maxRetries) {
       try {
         if (retries > 0) {
-          console.log(`Retry attempt ${retries}/${maxRetries} for webhook request...`);
+          // console.log(`Retry attempt ${retries}/${maxRetries} for webhook request...`);
           // Exponential backoff: wait longer between each retry
           await delay(1000 * Math.pow(2, retries - 1)); // 1s, 2s, 4s, etc.
         }
         
-        console.log("Sending request to webhook with payload:", JSON.stringify(payload));
-        console.log("Using headers:", JSON.stringify(headers));
+        // console.log("Sending request to webhook with payload:", JSON.stringify(payload));
+        // console.log("Using headers:", JSON.stringify(headers));
         
         const response = await axios.post(n8nChatWebhookUrl, payload, {
           headers,
@@ -488,19 +488,19 @@ export async function sendChatMessage(
           validateStatus: (status) => status < 500 // Don't throw for 4xx errors
         });
         
-        console.log("Webhook response status:", response.status);
-        console.log("Webhook response data:", JSON.stringify(response.data));
+        // console.log("Webhook response status:", response.status);
+        // console.log("Webhook response data:", JSON.stringify(response.data));
         
         // If we get here, the request was successful, so break out of the retry loop
         lastError = null;
         
         // Log the type of response data for debugging
-        console.log("Webhook response data type:", typeof response.data);
+        // console.log("Webhook response data type:", typeof response.data);
         if (Array.isArray(response.data)) {
-          console.log("Webhook response is an array with length:", response.data.length);
+          // console.log("Webhook response is an array with length:", response.data.length);
           if (response.data.length > 0) {
-            console.log("First item in array:", JSON.stringify(response.data[0]));
-            console.log("First item type:", typeof response.data[0]);
+            // console.log("First item in array:", JSON.stringify(response.data[0]));
+            // console.log("First item type:", typeof response.data[0]);
           }
         }
         
@@ -598,7 +598,7 @@ export async function sendChatMessage(
             const anthropicResult = processAnthropicResponse(webhookOutput);
             if (anthropicResult.componentData) {
               // It's an Anthropic response
-              console.log("Detected Anthropic response format");
+              // console.log("Detected Anthropic response format");
               componentData = anthropicResult.componentData;
               responseContent = anthropicResult.cleanedText;
             } else {
@@ -618,7 +618,7 @@ export async function sendChatMessage(
                 if (parsedOutput.component && parsedOutput.props) {
                   // Store component data for rendering
                   componentData = parsedOutput;
-                  console.log("Successfully extracted component data:", parsedOutput.component);
+                  // console.log("Successfully extracted component data:", parsedOutput.component);
                   
                   // Handle different component types
                   if (parsedOutput.component === "SimpleText") {
@@ -662,7 +662,7 @@ export async function sendChatMessage(
             const anthropicResult = processAnthropicResponse(firstItem.output);
             if (anthropicResult.componentData) {
               // It's an Anthropic response
-              console.log("Detected Anthropic response format");
+              // console.log("Detected Anthropic response format");
               componentData = anthropicResult.componentData;
               responseContent = anthropicResult.cleanedText;
             } else {
@@ -682,7 +682,7 @@ export async function sendChatMessage(
                 if (parsedOutput.component && parsedOutput.props) {
                   // Store component data for rendering
                   componentData = parsedOutput;
-                  console.log("Successfully extracted component data:", parsedOutput.component);
+                  // console.log("Successfully extracted component data:", parsedOutput.component);
                   
                   // Handle different component types
                   if (parsedOutput.component === "SimpleText") {
@@ -751,7 +751,7 @@ export async function sendChatMessage(
               const anthropicResult = processAnthropicResponse(webhookResponse.output);
               if (anthropicResult.componentData) {
                 // It's an Anthropic response
-                console.log("Detected Anthropic response format");
+                // console.log("Detected Anthropic response format");
                 componentData = anthropicResult.componentData;
                 responseContent = anthropicResult.cleanedText;
               } else {
@@ -771,7 +771,7 @@ export async function sendChatMessage(
                   if (parsedOutput.component && parsedOutput.props) {
                     // Store component data for rendering
                     componentData = parsedOutput;
-                    console.log("Successfully extracted component data:", parsedOutput.component);
+                    // console.log("Successfully extracted component data:", parsedOutput.component);
                     
                     // Handle different component types
                     if (parsedOutput.component === "SimpleText") {

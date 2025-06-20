@@ -33,7 +33,7 @@ export async function getUploadUrl(
 
     return await response.json();
   } catch (error) {
-    console.error('Error getting upload URL:', error);
+    // console.error('Error getting upload URL:', error);
     throw error;
   }
 }
@@ -58,7 +58,7 @@ export async function getDownloadUrl(key: string): Promise<string> {
     const data = await response.json();
     return data.downloadUrl;
   } catch (error) {
-    console.error('Error getting download URL:', error);
+    // console.error('Error getting download URL:', error);
     throw error;
   }
 }
@@ -85,6 +85,12 @@ export async function uploadFileToS3(
 
     if (!isPdf) {
       throw new Error('Only PDF files are supported');
+    }
+    
+    // Check file size (20 MB limit)
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`File size exceeds 20 MB limit (${(file.size / (1024 * 1024)).toFixed(2)} MB)`);
     }
     
     // Step 1: Get the pre-signed URL
@@ -142,7 +148,7 @@ export async function uploadFileToS3(
       xhr.send(file);
     });
   } catch (error) {
-    console.error('Error uploading file to S3:', error);
+    // console.error('Error uploading file to S3:', error);
     throw error;
   }
 }

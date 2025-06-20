@@ -27,7 +27,7 @@ export async function updateDocumentStatus(
     });
 
     if (!document) {
-      console.error(`Document ${documentId} not found`);
+      // console.error(`Document ${documentId} not found`);
       return false;
     }
 
@@ -100,7 +100,7 @@ export async function updateDocumentStatus(
 
     return true
   } catch (error) {
-    console.error(`Error updating document ${documentId} status:`, error)
+    // console.error(`Error updating document ${documentId} status:`, error)
     return false
   }
 }
@@ -132,7 +132,7 @@ async function generateS3PresignedUrl(s3Key: string): Promise<string> {
 
     return presignedUrl;
   } catch (error) {
-    console.error('Error generating pre-signed URL:', error);
+    // console.error('Error generating pre-signed URL:', error);
     throw error;
   }
 }
@@ -159,7 +159,7 @@ export async function sendDocumentToProcessing(document: {
   const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
 
   if (!n8nWebhookUrl) {
-    console.warn("N8N_WEBHOOK_URL not configured")
+    // console.warn("N8N_WEBHOOK_URL not configured")
     
     // If n8n webhook is not configured, update document status to PROCESSED
     // This is just for development/testing purposes
@@ -177,10 +177,10 @@ export async function sendDocumentToProcessing(document: {
     const jwtAlgorithm = process.env.JWT_ALGORITHM || 'HS512'
     
     if (!jwtSecret) {
-      console.warn("JWT_SECRET not configured, webhook authentication will fail");
+      // console.warn("JWT_SECRET not configured, webhook authentication will fail");
     }
     
-    console.log(`Using JWT algorithm: ${jwtAlgorithm}`);
+    // console.log(`Using JWT algorithm: ${jwtAlgorithm}`);
     
     // Create headers with authentication
     const headers: Record<string, string> = {
@@ -225,7 +225,7 @@ export async function sendDocumentToProcessing(document: {
       });
       
       if (!documentRecord) {
-        console.error("Document processing - Document not found in database:", document.id);
+        // console.error("Document processing - Document not found in database:", document.id);
         throw new Error(`Document with ID ${document.id} not found in database`);
       }
 
@@ -235,7 +235,7 @@ export async function sendDocumentToProcessing(document: {
       const s3Key = urlParts.length > 1 ? urlParts[1] : null;
       
       if (!s3Key) {
-        console.error("Document processing - Could not extract S3 key from URL:", document.url);
+        // console.error("Document processing - Could not extract S3 key from URL:", document.url);
         throw new Error("Could not extract S3 key from URL");
       }
       
@@ -309,11 +309,11 @@ export async function sendDocumentToProcessing(document: {
       
       return true;
     } catch (dbError) {
-      console.error("Document processing - Error preparing document:", dbError);
+      // console.error("Document processing - Error preparing document:", dbError);
       throw dbError;
     }
   } catch (error: any) {
-    console.error("Error triggering n8n webhook:", error);
+    // console.error("Error triggering n8n webhook:", error);
     
     // Check if this is a 400 status code error
     const errorMessage = error.response?.status === 400

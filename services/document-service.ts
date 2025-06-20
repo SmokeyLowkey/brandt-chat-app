@@ -54,7 +54,7 @@ export class DocumentService {
       }
       
       const url = `/api/tenants/${tenantId}/documents?${queryParams.toString()}`
-      console.log("DocumentService.getDocuments - Fetching from URL:", url)
+      // console.log("DocumentService.getDocuments - Fetching from URL:", url)
       
       // Make API request
       const response = await fetch(
@@ -74,7 +74,7 @@ export class DocumentService {
       }
 
       const data = await response.json()
-      console.log("DocumentService.getDocuments - Response data length:", data.length)
+      // console.log("DocumentService.getDocuments - Response data length:", data.length)
       return data
     } catch (error) {
       console.error('Error fetching documents:', error)
@@ -182,7 +182,7 @@ export class DocumentService {
    */
   static async deleteDocument(tenantId: string, documentId: string): Promise<boolean> {
     try {
-      console.log(`Attempting to delete document: ${documentId} for tenant: ${tenantId}`)
+      // console.log(`Attempting to delete document: ${documentId} for tenant: ${tenantId}`)
       
       const response = await fetch(
         `/api/tenants/${tenantId}/documents/${documentId}`,

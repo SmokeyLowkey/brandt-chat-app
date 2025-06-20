@@ -31,7 +31,7 @@ export default function ChangePasswordPage() {
 
   const handlePasswordChangeSuccess = async () => {
     try {
-      console.log("Password change successful, updating session...");
+      // console.log("Password change successful, updating session...");
       
       // Update the session to reflect that the password has been changed
       await update({
@@ -42,7 +42,7 @@ export default function ChangePasswordPage() {
         },
       });
       
-      console.log("Session updated, setting cookie and redirecting to dashboard...");
+      // console.log("Session updated, setting cookie and redirecting to dashboard...");
       
       // Set a cookie to indicate password has been changed
       document.cookie = "password_changed=true; path=/; max-age=86400"; // 24 hours

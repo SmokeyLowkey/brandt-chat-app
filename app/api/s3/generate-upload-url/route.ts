@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     
     // Allow admins to override the tenant ID
     if (session.user.role === "ADMIN" && overrideTenantId) {
-      console.log(`Admin ${session.user.id} overriding tenant ID to ${overrideTenantId} for upload URL generation`);
+      // console.log(`Admin ${session.user.id} overriding tenant ID to ${overrideTenantId} for upload URL generation`);
       tenantId = overrideTenantId;
     }
 
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       fileUrl
     });
   } catch (error) {
-    console.error('Error generating pre-signed URL:', error);
+    // console.error('Error generating pre-signed URL:', error);
     return NextResponse.json(
       { error: 'Error generating upload URL' },
       { status: 500 }
