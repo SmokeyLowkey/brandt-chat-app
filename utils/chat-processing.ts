@@ -331,7 +331,8 @@ export async function sendChatMessage(
   maxRetries: number = 2 // Default to 2 retries
 ) {
   // Use the chat webhook URL from environment variables
-  const n8nChatWebhookUrl = process.env.N8N_CHAT_WEBHOOK_URL || process.env.N8N_CHAT_TEST_WEBHOOK_URL;
+  // const n8nChatWebhookUrl = process.env.N8N_CHAT_WEBHOOK_URL;
+  const n8nChatWebhookUrl = process.env.N8N_CHAT_WEBHOOK_URL;
 
   if (!n8nChatWebhookUrl) {
     console.warn("N8N_CHAT_WEBHOOK_URL and N8N_CHAT_TEST_WEBHOOK_URL not configured");
@@ -403,6 +404,27 @@ export async function sendChatMessage(
       throw new Error("Tenant or user not found");
     }
     
+    // Fetch all documents for this tenant to extract namespaces
+    const tenantDocuments = await prisma.document.findMany({
+      where: { tenantId: tenantId },
+      select: { metadata: true }
+    });
+    
+    // Extract unique namespaces from document metadata
+    const tenantNamespaces = new Set<string>();
+    
+    tenantDocuments.forEach(doc => {
+      const docNamespace = (doc.metadata as any)?.namespace;
+      if (docNamespace && typeof docNamespace === 'string') {
+        tenantNamespaces.add(docNamespace);
+      }
+    });
+    
+    // If no namespaces were found, don't add any default
+    
+    // Convert Set to Array
+    const namespaceArray = Array.from(tenantNamespaces);
+    
     // Prepare the payload for the webhook
     // Format the payload according to the n8n workflow expectations
     const payload = {
@@ -412,6 +434,7 @@ export async function sendChatMessage(
       userId,
       sessionId: sessionId || `session_${Date.now()}`, // Include session ID or generate one
       timestamp: new Date().toISOString(),
+      namespaces: namespaceArray, // Include array of all tenant namespaces
       metadata: {
         tenant: {
           id: tenantId,

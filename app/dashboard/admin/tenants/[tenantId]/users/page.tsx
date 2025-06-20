@@ -193,7 +193,7 @@ export default function TenantUsersPage({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push(`/dashboard/admin/tenants/${params.tenantId}`)}
+            onClick={() => router.push("/dashboard/admin/tenants")}
             className="mr-2"
           >
             <ArrowLeft className="h-5 w-5" />

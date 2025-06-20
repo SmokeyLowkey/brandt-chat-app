@@ -100,13 +100,8 @@ export async function POST(req: Request) {
       features: {
         documentUpload: true,
         analytics: true,
-        n8nIntegration: false,
       },
-      aiSettings: {
-        temperature: 0.7,
-        maxTokens: 2000,
-        systemPrompt: "You are a helpful assistant for the aftersales parts industry.",
-      },
+      documentNamespaces: [], // Empty array for admin-defined namespaces
     };
 
     // Ensure settings is properly formatted as JSON

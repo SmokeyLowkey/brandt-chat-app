@@ -25,10 +25,16 @@ export async function POST(request: NextRequest) {
 
     // Parse the request body
     const body = await request.json();
-    const { filename, contentType } = body;
+    const { filename, contentType, overrideTenantId } = body;
     
-    // Get tenant ID from session
-    const tenantId = session.user.tenantId;
+    // Get tenant ID from session or use override for admins
+    let tenantId = session.user.tenantId;
+    
+    // Allow admins to override the tenant ID
+    if (session.user.role === "ADMIN" && overrideTenantId) {
+      console.log(`Admin ${session.user.id} overriding tenant ID to ${overrideTenantId} for upload URL generation`);
+      tenantId = overrideTenantId;
+    }
 
     if (!tenantId || !filename) {
       return NextResponse.json(

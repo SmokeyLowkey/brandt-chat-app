@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { MessageSquare, FileUp, Settings, BarChart2, Users, HelpCircle, Menu, X, Building } from "lucide-react"
+import { MessageSquare, FileUp, Settings, BarChart2, Users, HelpCircle, Menu, X, Building, ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useTenant } from "@/providers/tenant-provider"
@@ -15,9 +15,27 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname()
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false) // Mobile sidebar state
+  const [isCollapsed, setIsCollapsed] = useState(false) // Desktop sidebar collapse state
   const { data: session } = useSession()
   const { tenantName } = useTenant()
+  
+  // Load collapsed state from localStorage on component mount
+  useEffect(() => {
+    const savedState = localStorage.getItem('sidebarCollapsed');
+    if (savedState !== null) {
+      setIsCollapsed(savedState === 'true');
+    }
+  }, []);
+  
+  // Save collapsed state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('sidebarCollapsed', isCollapsed.toString());
+    
+    // Dispatch a custom event to notify other components
+    const event = new Event('sidebarStateChange');
+    window.dispatchEvent(event);
+  }, [isCollapsed]);
 
   // Get user initials for avatar
   const getInitials = () => {
@@ -143,37 +161,89 @@ export function Sidebar({ className }: SidebarProps) {
       )}
 
       {/* Desktop sidebar */}
-      <div className={cn("hidden md:flex h-full w-64 flex-col bg-white border-r border-gray-100", className)}>
-        <div className="p-6">
-          <div className="text-2xl font-bold text-[#E31937]">BRANDT</div>
-          <div className="text-xs text-gray-500 mt-1">{tenantName || "Internal Chatbot"}</div>
+      <div
+        className={cn(
+          "hidden md:flex h-screen flex-col bg-white border-r border-gray-100 transition-all duration-300 ease-in-out",
+          isCollapsed ? "w-16" : "w-64", // w-16 = 4rem, w-64 = 16rem
+          className
+        )}
+        style={{
+          width: isCollapsed ? '4rem' : '16rem', // Ensure exact match with layout margins
+          height: '100vh',
+          position: 'fixed',
+          top: 0,
+          left: 0
+        }}
+        data-state={isCollapsed ? "collapsed" : "expanded"}
+      >
+        <div className={cn("flex flex-col", isCollapsed ? "p-3 items-center" : "p-6")}>
+          {!isCollapsed && (
+            <>
+              <div className="text-2xl font-bold text-[#E31937]">BRANDT</div>
+              <div className="text-xs text-gray-500 mt-1 truncate w-full">{tenantName || "Truck and Trailer"}</div>
+            </>
+          )}
+          {isCollapsed && (
+            <div className="text-2xl font-bold text-[#E31937]">B</div>
+          )}
         </div>
-        <div className="flex-1 overflow-auto py-2 px-4">
+        
+        {/* Toggle button - positioned in the middle of the sidebar edge */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            right: '-12px',
+            transform: `translateY(-50%) ${isCollapsed ? 'rotate(180deg)' : ''}`,
+            height: '24px',
+            width: '24px',
+            borderRadius: '50%',
+            padding: 0,
+            zIndex: 30,
+            backgroundColor: 'white',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)'
+          }}
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <ChevronLeft className="h-4 w-4 text-gray-600" />
+          <span className="sr-only">
+            {isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          </span>
+        </Button>
+        
+        <div className="flex-1 overflow-auto py-2 px-2">
           <nav className="flex flex-col gap-1">
             {routes.map((route) => (
               <Link
                 key={route.href}
                 href={route.href}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:text-[#E31937]",
+                  "flex items-center rounded-lg py-2 text-sm transition-all hover:text-[#E31937]",
+                  isCollapsed ? "justify-center px-2" : "px-3 gap-3",
                   route.active ? "bg-[#E31937] bg-opacity-10 text-[#E31937] font-medium" : "text-gray-700",
                 )}
+                title={isCollapsed ? route.label : undefined}
               >
                 <route.icon className="h-4 w-4" />
-                {route.label}
+                {!isCollapsed && route.label}
               </Link>
             ))}
           </nav>
         </div>
-        <div className="p-4 mt-auto border-t border-gray-100">
-          <div className="flex items-center gap-3 px-2">
+        <div className={cn("mt-auto border-t border-gray-100", isCollapsed ? "p-2" : "p-4")}>
+          <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-3 px-2")}>
             <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-600">
               {getInitials()}
             </div>
-            <div>
-              <p className="text-sm font-medium">{session?.user?.name || "User"}</p>
-              <p className="text-xs text-gray-500">{getUserRole()}</p>
-            </div>
+            {!isCollapsed && (
+              <div>
+                <p className="text-sm font-medium">{session?.user?.name || "User"}</p>
+                <p className="text-xs text-gray-500">{getUserRole()}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

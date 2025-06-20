@@ -57,7 +57,9 @@ export default function TenantsPage() {
     name: "",
     slug: "",
     domain: "",
+    namespaces: ["General"] // Default namespace
   });
+  const [newNamespace, setNewNamespace] = useState("");
 
   // Redirect if not admin
   useEffect(() => {
@@ -94,10 +96,20 @@ export default function TenantsPage() {
   const handleCreateTenant = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate that at least one namespace is provided
+    if (newTenant.namespaces.length === 0) {
+      toast.error("At least one namespace is required");
+      return;
+    }
+
     // Prepare tenant data - ensure domain is null if empty
     const tenantData = {
-      ...newTenant,
-      domain: newTenant.domain.trim() === "" ? null : newTenant.domain
+      name: newTenant.name,
+      slug: newTenant.slug,
+      domain: newTenant.domain.trim() === "" ? null : newTenant.domain,
+      settings: {
+        documentNamespaces: newTenant.namespaces
+      }
     };
     
     console.log("Creating tenant with data:", tenantData);
@@ -126,7 +138,8 @@ export default function TenantsPage() {
         };
         
         setTenants([...tenants, newTenantWithCount]);
-        setNewTenant({ name: "", slug: "", domain: "" });
+        setNewTenant({ name: "", slug: "", domain: "", namespaces: ["General"] });
+        setNewNamespace("");
         setIsDialogOpen(false);
         toast.success("Tenant created successfully");
         
@@ -244,6 +257,66 @@ export default function TenantsPage() {
                     }
                     placeholder="acme.com"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="namespaces">Document Namespaces (Required)</Label>
+                  <div className="border rounded-md p-3 mb-2">
+                    {newTenant.namespaces.length === 0 ? (
+                      <p className="text-sm text-gray-500 italic">No namespaces defined yet. Add at least one namespace below.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {newTenant.namespaces.map((namespace, index) => (
+                          <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                            <span>{namespace}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              type="button"
+                              onClick={() => {
+                                const updatedNamespaces = [...newTenant.namespaces];
+                                updatedNamespaces.splice(index, 1);
+                                setNewTenant({ ...newTenant, namespaces: updatedNamespaces });
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3 text-gray-500" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      id="new-namespace"
+                      placeholder="Enter namespace"
+                      value={newNamespace}
+                      onChange={(e) => setNewNamespace(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (newNamespace && newNamespace.trim() !== "") {
+                          // Check if namespace already exists
+                          if (!newTenant.namespaces.includes(newNamespace.trim())) {
+                            setNewTenant({
+                              ...newTenant,
+                              namespaces: [...newTenant.namespaces, newNamespace.trim()]
+                            });
+                            setNewNamespace("");
+                          } else {
+                            toast.error("This namespace already exists");
+                          }
+                        }
+                      }}
+                      disabled={!newNamespace || newNamespace.trim() === ""}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Namespaces are used to categorize documents during upload. At least one namespace is required.
+                  </p>
                 </div>
               </div>
               <DialogFooter>

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     // Parse the request body
     const body = await request.json();
-    const { key, url, name, size, type, overrideTenantId } = body;
+    const { key, url, name, size, type, overrideTenantId, namespace, description } = body;
     
     // Get tenant ID from session or use override for admins
     let tenantId = session.user.tenantId;
@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
             size,
             uploadedAt: new Date().toISOString(),
             mimeType: type,
-            s3Key: key
+            s3Key: key,
+            namespace: namespace || "General",
+            description: description || ""
           },
         },
         select: {
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
           documentName: name,
           documentType: type,
           uploadedBy: userId,
+          namespace: namespace || "General",
         },
         tenantId,
         userId,
@@ -94,6 +97,8 @@ export async function POST(request: NextRequest) {
         userId,
         size,
         mimeType: type,
+        namespace: namespace || "General",
+        description: description || "",
       });
       
       return NextResponse.json({ 

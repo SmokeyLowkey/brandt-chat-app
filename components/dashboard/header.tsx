@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { signOut, useSession } from "next-auth/react"
-import { Bell, Search, Building, CheckCircle2 } from "lucide-react"
+import { Bell, Search, Building, CheckCircle2, User } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useTenant } from "@/providers/tenant-provider"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { toast } from "sonner"
 import { NotificationCenter } from "@/components/notification/notification-center"
 import { ProcessingStatusIndicator } from "@/components/document/processing-status-indicator"
@@ -146,10 +147,15 @@ export function Header() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-sm font-medium text-gray-600">
-                  {getInitials()}
-                </div>
+              <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0 overflow-hidden">
+                <Avatar className="h-8 w-8">
+                  {session?.user?.image ? (
+                    <AvatarImage src={session.user.image} alt={session.user.name || "User"} />
+                  ) : null}
+                  <AvatarFallback className="bg-gray-200 text-gray-600 text-sm font-medium">
+                    {getInitials()}
+                  </AvatarFallback>
+                </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

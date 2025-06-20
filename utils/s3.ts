@@ -5,7 +5,11 @@
 /**
  * Generate a pre-signed URL for uploading a file to S3
  */
-export async function getUploadUrl(filename: string, contentType: string): Promise<{
+export async function getUploadUrl(
+  filename: string,
+  contentType: string,
+  overrideTenantId?: string
+): Promise<{
   uploadUrl: string;
   key: string;
   fileUrl: string;
@@ -19,6 +23,7 @@ export async function getUploadUrl(filename: string, contentType: string): Promi
       body: JSON.stringify({
         filename,
         contentType,
+        overrideTenantId,
       }),
     });
 
@@ -66,7 +71,8 @@ const activeUploads: Map<string, XMLHttpRequest> = new Map();
  */
 export async function uploadFileToS3(
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  overrideTenantId?: string
 ): Promise<{
   key: string;
   url: string;
@@ -82,7 +88,7 @@ export async function uploadFileToS3(
     }
     
     // Step 1: Get the pre-signed URL
-    const { uploadUrl, key, fileUrl } = await getUploadUrl(file.name, file.type);
+    const { uploadUrl, key, fileUrl } = await getUploadUrl(file.name, file.type, overrideTenantId);
 
     // Step 2: Upload the file with progress tracking
     return new Promise((resolve, reject) => {

@@ -122,10 +122,25 @@ model Document {
 
   // Relations
   chunks DocumentChunk[]
+  text   DocumentText?
 
   @@index([tenantId])
   @@index([userId])
   @@map("documents")
+}
+
+model DocumentText {
+  id        String   @id @default(cuid())
+  fullText  String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Document relation (one-to-one)
+  documentId String   @unique
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_texts")
 }
 
 model DocumentChunk {

@@ -22,7 +22,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, X, Edit, Users } from "lucide-react";
 import { toast } from "sonner";
 
 interface TenantSettings {
@@ -30,13 +30,8 @@ interface TenantSettings {
   features: {
     documentUpload: boolean;
     analytics: boolean;
-    n8nIntegration: boolean;
   };
-  aiSettings: {
-    temperature: number;
-    maxTokens: number;
-    systemPrompt: string;
-  };
+  documentNamespaces: string[];
 }
 
 interface Tenant {
@@ -64,7 +59,12 @@ export default function TenantDetailsPage({
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
+  const [newNamespace, setNewNamespace] = useState("");
+  const [formData, setFormData] = useState<{
+    name: string;
+    domain: string;
+    settings: TenantSettings;
+  }>({
     name: "",
     domain: "",
     settings: {
@@ -72,13 +72,8 @@ export default function TenantDetailsPage({
       features: {
         documentUpload: true,
         analytics: true,
-        n8nIntegration: false,
       },
-      aiSettings: {
-        temperature: 0.7,
-        maxTokens: 2000,
-        systemPrompt: "You are a helpful assistant for the aftersales parts industry.",
-      },
+      documentNamespaces: [],
     },
   });
 
@@ -100,22 +95,19 @@ export default function TenantDetailsPage({
           const data = await response.json();
           setTenant(data);
           
-          // Initialize form data with tenant data
+          // Ensure settings has the correct structure with defaults
+          const settings = data.settings || {};
+          
           setFormData({
             name: data.name,
             domain: data.domain || "",
-            settings: data.settings || {
-              theme: "light",
+            settings: {
+              theme: settings.theme || "light",
               features: {
-                documentUpload: true,
-                analytics: true,
-                n8nIntegration: false,
+                documentUpload: settings.features?.documentUpload !== undefined ? settings.features.documentUpload : true,
+                analytics: settings.features?.analytics !== undefined ? settings.features.analytics : true,
               },
-              aiSettings: {
-                temperature: 0.7,
-                maxTokens: 2000,
-                systemPrompt: "You are a helpful assistant for the aftersales parts industry.",
-              },
+              documentNamespaces: Array.isArray(settings.documentNamespaces) ? settings.documentNamespaces : [],
             },
           });
         } else {
@@ -191,18 +183,27 @@ export default function TenantDetailsPage({
             <p className="text-gray-500">Manage tenant details and settings</p>
           </div>
         </div>
-        <Button
-          className="bg-[#E31937] hover:bg-[#c01730]"
-          onClick={handleSave}
-          disabled={isSaving}
-        >
-          {isSaving ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save Changes
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/dashboard/admin/tenants/${tenant.id}/users`)}
+          >
+            <Users className="mr-2 h-4 w-4" />
+            Manage Users
+          </Button>
+          <Button
+            className="bg-[#E31937] hover:bg-[#c01730]"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Save Changes
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -211,7 +212,7 @@ export default function TenantDetailsPage({
             <TabsList className="mb-4">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="features">Features</TabsTrigger>
-              <TabsTrigger value="ai">AI Settings</TabsTrigger>
+              <TabsTrigger value="documents">Document Settings</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-4">
@@ -313,121 +314,90 @@ export default function TenantDetailsPage({
                       }
                     />
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="n8n-integration">n8n Integration</Label>
-                      <p className="text-sm text-gray-500">
-                        Enable integration with n8n for workflow automation
-                      </p>
-                    </div>
-                    <Switch
-                      id="n8n-integration"
-                      checked={formData.settings.features.n8nIntegration}
-                      onCheckedChange={(checked) =>
-                        setFormData({
-                          ...formData,
-                          settings: {
-                            ...formData.settings,
-                            features: {
-                              ...formData.settings.features,
-                              n8nIntegration: checked,
-                            },
-                          },
-                        })
-                      }
-                    />
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="ai" className="space-y-4">
+            <TabsContent value="documents" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>AI Settings</CardTitle>
+                  <CardTitle>Document Namespaces</CardTitle>
                   <CardDescription>
-                    Configure AI behavior for this tenant
+                    Configure namespaces for document organization
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="temperature">
-                      Temperature: {formData.settings.aiSettings.temperature}
-                    </Label>
-                    <Input
-                      id="temperature"
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={formData.settings.aiSettings.temperature}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          settings: {
-                            ...formData.settings,
-                            aiSettings: {
-                              ...formData.settings.aiSettings,
-                              temperature: parseFloat(e.target.value),
-                            },
-                          },
-                        })
-                      }
-                    />
-                    <p className="text-xs text-gray-500">
-                      Lower values make responses more focused and deterministic. Higher values make responses more creative.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="max-tokens">Max Tokens</Label>
-                    <Input
-                      id="max-tokens"
-                      type="number"
-                      min="100"
-                      max="4000"
-                      value={formData.settings.aiSettings.maxTokens}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          settings: {
-                            ...formData.settings,
-                            aiSettings: {
-                              ...formData.settings.aiSettings,
-                              maxTokens: parseInt(e.target.value),
-                            },
-                          },
-                        })
-                      }
-                    />
-                    <p className="text-xs text-gray-500">
-                      Maximum number of tokens to generate in responses.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="system-prompt">System Prompt</Label>
-                    <Textarea
-                      id="system-prompt"
-                      rows={5}
-                      value={formData.settings.aiSettings.systemPrompt}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          settings: {
-                            ...formData.settings,
-                            aiSettings: {
-                              ...formData.settings.aiSettings,
-                              systemPrompt: e.target.value,
-                            },
-                          },
-                        })
-                      }
-                    />
-                    <p className="text-xs text-gray-500">
-                      The system prompt that defines the AI's behavior and context.
-                    </p>
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-2">
+                      <Label>Namespaces</Label>
+                      <p className="text-sm text-gray-500">
+                        Define namespaces to categorize documents during upload
+                      </p>
+                      
+                      <div className="border rounded-md p-4">
+                        {formData.settings.documentNamespaces.length === 0 ? (
+                          <p className="text-sm text-gray-500 italic">No namespaces defined yet. Add your first namespace below.</p>
+                        ) : (
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {formData.settings.documentNamespaces.map((namespace, index) => (
+                              <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                                <span>{namespace}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const updatedNamespaces = [...formData.settings.documentNamespaces];
+                                    updatedNamespaces.splice(index, 1);
+                                    setFormData({
+                                      ...formData,
+                                      settings: {
+                                        ...formData.settings,
+                                        documentNamespaces: updatedNamespaces,
+                                      },
+                                    });
+                                  }}
+                                >
+                                  <X className="h-4 w-4 text-gray-500" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2 mt-2">
+                        <Input
+                          id="new-namespace"
+                          placeholder="Enter new namespace"
+                          value={newNamespace || ""}
+                          onChange={(e) => setNewNamespace(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (newNamespace && newNamespace.trim() !== "") {
+                              // Check if namespace already exists
+                              if (!formData.settings.documentNamespaces.includes(newNamespace.trim())) {
+                                setFormData({
+                                  ...formData,
+                                  settings: {
+                                    ...formData.settings,
+                                    documentNamespaces: [...formData.settings.documentNamespaces, newNamespace.trim()],
+                                  },
+                                });
+                                setNewNamespace("");
+                              } else {
+                                toast.error("This namespace already exists");
+                              }
+                            }
+                          }}
+                          disabled={!newNamespace || newNamespace.trim() === ""}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -473,13 +443,38 @@ export default function TenantDetailsPage({
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col gap-2">
               <Button
                 variant="outline"
                 className="w-full"
                 onClick={() => router.push(`/dashboard/admin/tenants/${tenant.id}/users`)}
               >
+                <Users className="mr-2 h-4 w-4" />
                 Manage Users
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  try {
+                    // Focus on the general tab
+                    const generalTab = document.querySelector('[value="general"]') as HTMLElement;
+                    if (generalTab) {
+                      generalTab.click();
+                    }
+                    // Scroll to the top of the form
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    // Show a toast to indicate the action
+                    toast.info("Edit tenant details in the form above");
+                  } catch (error) {
+                    console.error("Error focusing on general tab:", error);
+                    // Fallback - just scroll to top
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Tenant
               </Button>
             </CardFooter>
           </Card>

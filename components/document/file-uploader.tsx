@@ -1,15 +1,25 @@
 "use client";
 
-import { useState, useRef, ChangeEvent } from "react";
+import { useState, useRef, ChangeEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTenant } from "@/providers/tenant-provider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useUploads } from "@/providers/upload-provider";
 import { toast } from "sonner";
 import { FileText, Upload, CheckCircle, X, Loader2, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { uploadFileToS3, cancelUpload as cancelS3Upload } from "@/utils/s3";
 import { DocumentService } from "@/services/document-service";
 
@@ -31,7 +41,43 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const [totalFiles, setTotalFiles] = useState(0);
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
   const [currentS3Key, setCurrentS3Key] = useState<string | null>(null);
+  const [selectedNamespace, setSelectedNamespace] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
+  const [namespaces, setNamespaces] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Fetch namespaces from tenant settings
+  useEffect(() => {
+    const fetchTenantSettings = async () => {
+      if (!tenantId) return;
+      
+      // Reset namespace selection and description when tenant changes
+      setSelectedNamespace("");
+      setNamespaces([]);
+      setDescription("");
+      
+      // Also clear any selected files when tenant changes
+      clearSelectedFiles();
+      
+      try {
+        const response = await fetch(`/api/tenants/${tenantId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.settings?.documentNamespaces) {
+            setNamespaces(data.settings.documentNamespaces);
+            // Set default namespace if available
+            if (data.settings.documentNamespaces.length > 0) {
+              setSelectedNamespace(data.settings.documentNamespaces[0]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching tenant settings:", error);
+      }
+    };
+    
+    fetchTenantSettings();
+  }, [tenantId]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -55,6 +101,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
     }
   };
 
+  // Clear selected files - defined outside useEffect to avoid dependency issues
   const clearSelectedFiles = () => {
     setSelectedFiles([]);
     if (fileInputRef.current) {
@@ -89,16 +136,22 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
       updateUpload(uploadId, { progress: 0 });
 
       // Upload file to S3 with progress tracking
-      const { key, url } = await uploadFileToS3(file, (progress) => {
-        // Update progress based on actual upload progress
-        setUploadProgress(prev => ({
-          ...prev,
-          [file.name]: progress
-        }));
-        
-        // Update global upload progress
-        updateUpload(uploadId, { progress });
-      });
+      // Pass the override tenant ID for admins to ensure S3 path matches document tenant
+      const { key, url } = await uploadFileToS3(
+        file,
+        (progress) => {
+          // Update progress based on actual upload progress
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: progress
+          }));
+          
+          // Update global upload progress
+          updateUpload(uploadId, { progress });
+        },
+        // Pass the override tenant ID for admins, ensuring it's a string or undefined
+        isAdmin && tenantId ? tenantId : undefined
+      );
       
       // Store the S3 key for potential cancellation
       setCurrentS3Key(key);
@@ -126,6 +179,9 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           type: file.type,
           // Pass the override tenant ID for admins
           overrideTenantId: isAdmin ? tenantId : undefined,
+          // Pass namespace and description
+          namespace: selectedNamespace,
+          description: description,
         }),
       });
 
@@ -170,6 +226,11 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const handleUpload = async () => {
     if (selectedFiles.length === 0 || !tenantId) {
       toast.error("Please select files to upload");
+      return;
+    }
+    
+    if (!selectedNamespace) {
+      toast.error("Please select a namespace for the document(s)");
       return;
     }
 
@@ -330,6 +391,47 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
               Supported formats: PDF only (up to 16MB)
             </p>
           </div>
+          
+          {!isUploading && (
+            <div className="w-full max-w-xs space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="namespace">Namespace</Label>
+                <Select
+                  value={selectedNamespace}
+                  onValueChange={setSelectedNamespace}
+                  disabled={isUploading}
+                >
+                  <SelectTrigger id="namespace" className="w-full">
+                    <SelectValue placeholder="Select a namespace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {namespaces.length === 0 ? (
+                      <SelectItem value="none" disabled>No namespaces available</SelectItem>
+                    ) : (
+                      namespaces.map((namespace) => (
+                        <SelectItem key={namespace} value={namespace}>
+                          {namespace}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="description">Description (Optional)</Label>
+                <Textarea
+                  id="description"
+                  placeholder="Enter a description for the document(s)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={isUploading}
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+          )}
 
           {isUploading ? (
             <div className="w-full max-w-xs">
@@ -428,9 +530,10 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           )}
 
           {selectedFiles.length > 0 && !isUploading && (
-            <Button 
+            <Button
               onClick={handleUpload}
               className="bg-[#E31937] hover:bg-[#c01730] text-white"
+              disabled={!selectedNamespace}
             >
               Upload {selectedFiles.length > 1 ? `${selectedFiles.length} Documents` : 'Document'}
             </Button>
@@ -459,6 +562,14 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          
+          {namespaces.length === 0 && (
+            <div className="w-full max-w-xs mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm text-yellow-800">
+                No namespaces have been defined. Please ask an administrator to configure document namespaces.
+              </p>
             </div>
           )}
 

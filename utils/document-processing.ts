@@ -149,8 +149,13 @@ export async function sendDocumentToProcessing(document: {
   userId: string;
   size?: number;
   mimeType?: string;
+  namespace?: string;
+  description?: string;
 }) {
   // Always use the production webhook URL
+  // const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
+
+  // Test Webhook URL for development/testing purposes
   const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
 
   if (!n8nWebhookUrl) {
@@ -237,6 +242,10 @@ export async function sendDocumentToProcessing(document: {
       // Generate a pre-signed URL for the document
       const presignedUrl = await generateS3PresignedUrl(s3Key);
       
+      // Get namespace and description from document metadata if not provided directly
+      const namespace = document.namespace || (documentRecord.metadata as any)?.namespace || "General";
+      const description = document.description || (documentRecord.metadata as any)?.description || "";
+      
       // Send document info to n8n for processing
       const payload = {
         documentId: document.id,
@@ -247,6 +256,8 @@ export async function sendDocumentToProcessing(document: {
         tenantId: document.tenantId,
         fileSize: document.size,
         fileMimeType: document.mimeType || document.type,
+        namespace: namespace, // Include namespace in the top level
+        description: description, // Include description in the top level
         // Add comprehensive metadata for processing
         metadata: {
           document: {
@@ -256,7 +267,9 @@ export async function sendDocumentToProcessing(document: {
             uploadedAt: new Date().toISOString(),
             processingStartedAt: new Date().toISOString(),
             size: document.size,
-            mimeType: document.mimeType || document.type
+            mimeType: document.mimeType || document.type,
+            namespace: namespace, // Also include in metadata
+            description: description // Also include in metadata
           },
           tenant: {
             id: document.tenantId,
@@ -287,6 +300,11 @@ export async function sendDocumentToProcessing(document: {
       if (isSuccessful) {
         // Update document status to PROCESSED
         await updateDocumentStatus(document.id, "PROCESSED");
+      } else {
+        // If not successful but no error was thrown, mark as failed
+        await updateDocumentStatus(document.id, "FAILED", {
+          error: "Document processing did not return success status",
+        });
       }
       
       return true;
@@ -294,12 +312,17 @@ export async function sendDocumentToProcessing(document: {
       console.error("Document processing - Error preparing document:", dbError);
       throw dbError;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error triggering n8n webhook:", error);
+    
+    // Check if this is a 400 status code error
+    const errorMessage = error.response?.status === 400
+      ? `API returned 400 error: ${JSON.stringify(error.response?.data || {})}`
+      : "Failed to send to processing service";
     
     // Update document status to FAILED if webhook call fails
     await updateDocumentStatus(document.id, "FAILED", {
-      error: "Failed to send to processing service",
+      error: errorMessage,
     });
     
     return false;
