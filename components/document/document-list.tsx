@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Document, DocumentService } from "@/services/document-service"
 import { Button } from "@/components/ui/button"
-import { FileText, Trash2, Eye, Plus, RefreshCw } from "lucide-react"
+import { FileText, Trash2, Eye, Plus, RefreshCw, RotateCw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentDetails } from "./document-details"
 import { useToast } from "@/components/ui/use-toast"
@@ -11,26 +11,71 @@ import { useToast } from "@/components/ui/use-toast"
 interface DocumentListProps {
   documents: Document[]
   onDocumentDelete: (documentId: string) => void
+  onDocumentRetry?: (documentId: string) => void
 }
 
-export function DocumentList({ documents, onDocumentDelete }: DocumentListProps) {
+export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: DocumentListProps) {
   const { toast } = useToast()
   const router = useRouter()
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [retryingDocuments, setRetryingDocuments] = useState<Set<string>>(new Set())
   
   // Debug: Log documents being received
   // console.log("DocumentList received documents:", documents)
   
   const handleRefresh = () => {
     setIsRefreshing(true)
-    router.refresh()
-    setTimeout(() => setIsRefreshing(false), 1000)
+    
+    // Get the current URL and reload it with a cache-busting parameter
+    const url = new URL(window.location.href);
+    url.searchParams.set('t', Date.now().toString());
+    window.location.href = url.toString();
   }
   
   const createTestDocument = () => {
     window.location.href = "/api/create-test-document"
+  }
+
+  const handleRetry = async (documentId: string, tenantId: string) => {
+    // Add document to retrying set
+    setRetryingDocuments(prev => new Set(prev).add(documentId))
+    
+    try {
+      // Call the retry function from DocumentService
+      const success = await DocumentService.retryDocumentProcessing(tenantId, documentId)
+      
+      if (success) {
+        toast({
+          title: "Processing restarted",
+          description: "Document processing has been restarted",
+        })
+        
+        // If there's a custom handler, call it
+        if (onDocumentRetry) {
+          onDocumentRetry(documentId)
+        }
+        
+        // Get the current URL and reload it with a cache-busting parameter
+        const url = new URL(window.location.href);
+        url.searchParams.set('t', Date.now().toString());
+        window.location.href = url.toString();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to restart document processing",
+        variant: "destructive",
+      })
+    } finally {
+      // Remove document from retrying set
+      setRetryingDocuments(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(documentId)
+        return newSet
+      })
+    }
   }
 
   const handleViewDetails = (document: Document) => {
@@ -89,8 +134,9 @@ export function DocumentList({ documents, onDocumentDelete }: DocumentListProps)
       
       <div className="rounded-md border">
         <div className="grid grid-cols-12 gap-2 border-b bg-gray-50 p-4 text-sm font-medium text-gray-500">
-          <div className="col-span-5">Name</div>
-          <div className="col-span-2">Type</div>
+          <div className="col-span-4">Name</div>
+          <div className="col-span-2">Namespace</div>
+          <div className="col-span-1">Type</div>
           <div className="col-span-2">Size</div>
           <div className="col-span-2">Status</div>
           <div className="col-span-1"></div>
@@ -99,11 +145,14 @@ export function DocumentList({ documents, onDocumentDelete }: DocumentListProps)
           {documents.length > 0 ? (
             documents.map((doc) => (
               <div key={doc.id} className="grid grid-cols-12 gap-2 p-4 text-sm items-center">
-                <div className="col-span-5 flex items-center gap-2">
+                <div className="col-span-4 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-gray-400" />
                   <span className="font-medium truncate">{doc.name}</span>
                 </div>
-                <div className="col-span-2">{doc.type.toUpperCase()}</div>
+                <div className="col-span-2">
+                  {(doc.metadata as any)?.namespace || "General"}
+                </div>
+                <div className="col-span-1">{doc.type.toUpperCase()}</div>
                 <div className="col-span-2">{doc.metadata ? formatFileSize(doc.metadata.size) : "Unknown"}</div>
                 <div className="col-span-2">
                   <span
@@ -113,14 +162,28 @@ export function DocumentList({ documents, onDocumentDelete }: DocumentListProps)
                   </span>
                 </div>
                 <div className="col-span-1 flex justify-end gap-1">
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="icon"
                     onClick={() => handleViewDetails(doc)}
                     title="View details"
                   >
                     <Eye className="h-4 w-4 text-gray-500" />
                   </Button>
+                  
+                  {/* Retry button for failed documents that haven't been retried yet */}
+                  {doc.status === "FAILED" && !(doc.metadata as any)?.retryAttempt && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRetry(doc.id, doc.tenantId)}
+                      disabled={retryingDocuments.has(doc.id)}
+                      title="Retry processing"
+                    >
+                      <RotateCw className={`h-4 w-4 ${retryingDocuments.has(doc.id) ? 'animate-spin text-blue-500' : 'text-gray-500'}`} />
+                    </Button>
+                  )}
+                  
                   <Button
                     variant="ghost"
                     size="icon"

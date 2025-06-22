@@ -90,6 +90,41 @@ export default function DocumentsPage() {
     }
   }
 
+  const handleRetryDocument = async (documentId: string) => {
+    if (!session || !tenantId) {
+      toast.error("Authentication error. Please log in again.")
+      return
+    }
+    
+    try {
+      // Find the document name for better user feedback
+      const documentToRetry = documents.find(doc => doc.id === documentId)
+      const documentName = documentToRetry?.name || "document"
+      
+      // Show loading toast
+      toast.loading(`Retrying processing for ${documentName}...`)
+      
+      const success = await DocumentService.retryDocumentProcessing(tenantId, documentId)
+      
+      if (success) {
+        // Get the current URL and reload it with a cache-busting parameter
+        const url = new URL(window.location.href);
+        url.searchParams.set('t', Date.now().toString());
+        window.location.href = url.toString();
+        
+        toast.dismiss()
+        toast.success(`Processing restarted for "${documentName}"`)
+      } else {
+        toast.dismiss()
+        toast.error(`Failed to restart processing for "${documentName}". Please try again.`)
+      }
+    } catch (error) {
+      console.error("Error in handleRetryDocument:", error)
+      toast.dismiss()
+      toast.error(`An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
   const filteredDocuments = documents.filter((doc) => 
     doc.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -164,6 +199,7 @@ export default function DocumentsPage() {
                 <DocumentList
                   documents={filteredDocuments}
                   onDocumentDelete={handleDeleteDocument}
+                  onDocumentRetry={handleRetryDocument}
                 />
               )}
             </CardContent>
@@ -184,6 +220,7 @@ export default function DocumentsPage() {
               <DocumentList
                 documents={documents.filter((doc) => doc.status === "PROCESSED")}
                 onDocumentDelete={handleDeleteDocument}
+                onDocumentRetry={handleRetryDocument}
               />
             </CardContent>
           </Card>
@@ -195,6 +232,7 @@ export default function DocumentsPage() {
               <DocumentList
                 documents={documents.filter((doc) => doc.status === "PROCESSING")}
                 onDocumentDelete={handleDeleteDocument}
+                onDocumentRetry={handleRetryDocument}
               />
             </CardContent>
           </Card>
@@ -206,6 +244,7 @@ export default function DocumentsPage() {
               <DocumentList
                 documents={documents.filter((doc) => doc.status === "FAILED")}
                 onDocumentDelete={handleDeleteDocument}
+                onDocumentRetry={handleRetryDocument}
               />
             </CardContent>
           </Card>

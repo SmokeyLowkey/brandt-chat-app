@@ -134,6 +134,35 @@ export function DocumentDetails({ document, isOpen, onClose }: DocumentDetailsPr
             </div>
           </div>
 
+          {/* Display namespace if available */}
+          {(document.metadata as any)?.namespace && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Namespace:</span>
+              <span className="text-sm">{(document.metadata as any).namespace}</span>
+            </div>
+          )}
+
+          {/* Display description if available */}
+          {(document.metadata as any)?.description && (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Description:</span>
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                <p className="text-sm whitespace-pre-line">{(document.metadata as any).description}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Show retry information if available */}
+          {(document.metadata as any)?.retryAttempt && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Retry:</span>
+              <div className="flex items-center gap-1 text-sm">
+                <Clock className="h-3.5 w-3.5 text-blue-500" />
+                <span>Retried on {formatDate((document.metadata as any).retryAt)}</span>
+              </div>
+            </div>
+          )}
+
           {document.status === "FAILED" && document.metadata?.error && (
             <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
               <div className="flex items-start">

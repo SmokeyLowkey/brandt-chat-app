@@ -10,6 +10,8 @@ export interface Document {
     size: number
     uploadedAt: string
     mimeType: string
+    namespace?: string
+    description?: string
     error?: string
     failedAt?: string
   }
@@ -28,6 +30,8 @@ export interface DocumentCreateParams {
     size: number
     mimeType: string
     uploadedAt: string
+    namespace?: string
+    description?: string
   }
 }
 
@@ -38,6 +42,8 @@ export interface DocumentUpdateParams {
     size?: number
     mimeType?: string
     uploadedAt?: string
+    namespace?: string
+    description?: string
   }
 }
 
@@ -206,6 +212,37 @@ export class DocumentService {
     } catch (error) {
       console.error('Error deleting document:', error)
       toast.error(`Failed to delete document: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return false
+    }
+  }
+
+  /**
+   * Retry processing a failed document
+   */
+  static async retryDocumentProcessing(tenantId: string, documentId: string): Promise<boolean> {
+    try {
+      // Make API request to retry processing
+      const response = await fetch(
+        `/api/tenants/${tenantId}/documents/${documentId}/retry`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error retrying document processing:', response.status, errorText);
+        throw new Error(`Failed to retry document processing: ${response.status} ${errorText}`);
+      }
+
+      toast.success('Document processing restarted');
+      return true
+    } catch (error) {
+      console.error('Error retrying document processing:', error)
+      toast.error(`Failed to retry document processing: ${error instanceof Error ? error.message : 'Unknown error'}`)
       return false
     }
   }
