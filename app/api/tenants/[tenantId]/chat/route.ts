@@ -255,11 +255,33 @@ export async function POST(
     }
     
     return NextResponse.json(responseData);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in chat API:", error);
+    
+    // Create a more specific error message based on the error type
+    let errorMessage = "Internal server error";
+    let statusCode = 500;
+    
+    // Check for timeout errors
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      errorMessage = "Request timed out. The service is taking longer than expected to respond.";
+      statusCode = 504; // Gateway Timeout
+      console.error("Timeout error details:", error.message);
+    } else if (error.code === 'ECONNREFUSED' || error.message?.includes('connection refused')) {
+      errorMessage = "Could not connect to the chat service. The service may be down.";
+      statusCode = 503; // Service Unavailable
+    } else if (error.response?.status === 404 || error.message?.includes('not found')) {
+      errorMessage = "The requested resource was not found.";
+      statusCode = 404; // Not Found
+    }
+    
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
+      {
+        error: errorMessage,
+        isFallbackMode: true,
+        content: "I'm sorry, but I'm having trouble connecting to the AI service. Please try again in a moment."
+      },
+      { status: statusCode }
     );
   }
 }

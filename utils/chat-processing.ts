@@ -483,8 +483,8 @@ export async function sendChatMessage(
         
         const response = await axios.post(n8nChatWebhookUrl, payload, {
           headers,
-          // Increased timeout to allow more time for webhook processing
-          timeout: 60000, // 60 seconds instead of 10 seconds
+          // Significantly increased timeout to allow more time for webhook processing in production
+          timeout: 180000, // 180 seconds (3 minutes) instead of 60 seconds
           validateStatus: (status) => status < 500 // Don't throw for 4xx errors
         });
         
@@ -520,6 +520,7 @@ export async function sendChatMessage(
           
           // Add specific handling for timeout errors
           if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+            console.error("Request timeout error:", error.message);
             fallbackMessage = "I apologize, but the request is taking longer than expected to process. Your message has been saved and will be processed when the service is available. Please try again in a moment.";
           }
           

@@ -29,10 +29,12 @@ export default function ChatContainer() {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [queryType, setQueryType] = useState<string>("general");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -133,9 +135,25 @@ export default function ChatContainer() {
     }
     
     setIsLoading(true);
+    setLoadingStartTime(Date.now());
+    
+    // Try to determine query type for more relevant waiting messages
+    const lowerMessage = messageText.toLowerCase();
+    if (lowerMessage.includes("part") || lowerMessage.includes("number") || lowerMessage.includes("pn")) {
+      setQueryType("parts");
+    } else if (lowerMessage.includes("truck") || lowerMessage.includes("vehicle") || lowerMessage.includes("engine")) {
+      setQueryType("vehicle");
+    } else if (lowerMessage.includes("price") || lowerMessage.includes("cost") || lowerMessage.includes("quote")) {
+      setQueryType("pricing");
+    } else {
+      setQueryType("general");
+    }
 
     try {
-      // Send message to API
+      // Send message to API with increased timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
+      
       const response = await fetch(`/api/tenants/${tenantId}/chat`, {
         method: 'POST',
         headers: {
@@ -145,8 +163,11 @@ export default function ChatContainer() {
           message: messageText,
           conversationId: selectedConversationId,
           isRetry: isRetry
-        })
+        }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error('Failed to get response from chat API');
@@ -212,7 +233,7 @@ export default function ChatContainer() {
             }
             
             sendMessage(enhancedMessage, true);
-          }, 5000); // 5 second delay before retry
+          }, 10000); // 10 second delay before retry
           
           setIsLoading(false);
           return;
@@ -256,13 +277,33 @@ export default function ChatContainer() {
       if (!selectedConversationId && responseData.conversationId) {
         setSelectedConversationId(responseData.conversationId);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       
-      // Add error message
+      // Add specific error message based on error type
+      let errorContent = "I'm sorry, I encountered an error processing your request. Please try again later.";
+      
+      // Check if it's a timeout error
+      if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('network')) {
+        errorContent = "I'm sorry, the request is taking longer than expected to process. The server might be experiencing high load. Please try again in a moment.";
+        
+        // If this wasn't already a retry, schedule an automatic retry
+        if (!isRetry && retryCount < 2) {
+          errorContent = "The request is taking longer than expected. I'll automatically try again in a moment...";
+          
+          // Increment retry count
+          setRetryCount((prev) => prev + 1);
+          
+          // Schedule a retry after a longer delay
+          setTimeout(() => {
+            sendMessage(messageText, true);
+          }, 10000); // 10 second delay before retry
+        }
+      }
+      
       const errorMessage: Message = {
         role: "assistant",
-        content: "I'm sorry, I encountered an error processing your request. Please try again later.",
+        content: errorContent,
         timestamp: new Date(),
       };
       
@@ -313,7 +354,13 @@ export default function ChatContainer() {
                     />
                   );
                 })}
-                {isLoading && <TypingIndicator isRetrying={isRetrying} />}
+                {isLoading && (
+                  <TypingIndicator
+                    isRetrying={isRetrying}
+                    waitTime={loadingStartTime && Date.now() - loadingStartTime > 3000 ? 0 : 3000}
+                    queryType={queryType}
+                  />
+                )}
                 <div ref={messagesEndRef} />
               </div>
               
