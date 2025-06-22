@@ -125,9 +125,9 @@ async function generateS3PresignedUrl(s3Key: string): Promise<string> {
       Key: s3Key,
     });
     
-    // Generate the pre-signed URL for download (valid for 24 hours)
+    // Generate the pre-signed URL for download (valid for 48 hours)
     const presignedUrl = await getSignedUrl(s3Client, getCommand, {
-      expiresIn: 86400, // 24 hours
+      expiresIn: 172800, // 48 hours
     });
 
     return presignedUrl;
@@ -152,6 +152,32 @@ export async function sendDocumentToProcessing(document: {
   namespace?: string;
   description?: string;
 }) {
+  try {
+    // Get current document metadata
+    const currentDoc = await prisma.document.findUnique({
+      where: { id: document.id },
+      select: { metadata: true }
+    });
+    
+    // Update document status to PROCESSING now that we're sending it to n8n
+    // Also update metadata to indicate it's being processed
+    await prisma.document.update({
+      where: { id: document.id },
+      data: {
+        status: "PROCESSING",
+        metadata: {
+          ...(currentDoc?.metadata as any || {}),
+          processingState: "SENT_TO_N8N",
+          sentToProcessing: true,
+          processingStartedAt: new Date().toISOString()
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error updating document status before processing:", error);
+    // Continue with processing attempt even if update fails
+  }
+  
   // Always use the production webhook URL
   // const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
 
@@ -193,7 +219,7 @@ export async function sendDocumentToProcessing(document: {
         documentId: document.id,
         tenantId: document.tenantId,
         iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (60 * 60) // 1 hour expiration
+        exp: Math.floor(Date.now() / 1000) + (3 * 60 * 60) // 3 hour expiration
       },
       jwtSecret || 'fallback-secret-for-development-only',
       { algorithm: jwtAlgorithm as any }
@@ -286,26 +312,59 @@ export async function sendDocumentToProcessing(document: {
         }
       };
       
-      const response = await axios.post(n8nWebhookUrl, payload, { headers });
+      // Send the request to n8n
+      const response = await axios.post(n8nWebhookUrl, payload, {
+        headers,
+        // Don't throw errors for non-200 status codes
+        validateStatus: () => true
+      });
       
-      // Check if the response indicates successful processing
-      const isSuccessful =
-        // Check for array response format
-        (Array.isArray(response.data) &&
-         response.data[0]?.response?.body === "DOCUMENT[S] PROCESSED SUCCESSFULLY") ||
-        // Check for direct string response format
-        (typeof response.data === 'string' &&
-         response.data === "DOCUMENT[S] PROCESSED SUCCESSFULLY");
+      // Log that we've sent the document to processing
+      console.log(`Document ${document.id} sent to n8n for processing, status: ${response.status}`);
       
-      if (isSuccessful) {
-        // Update document status to PROCESSED
-        await updateDocumentStatus(document.id, "PROCESSED");
+      // Check if we got a successful response
+      if (response.status >= 200 && response.status < 300) {
+        // Update metadata to indicate successful sending to n8n
+        const currentDoc = await prisma.document.findUnique({
+          where: { id: document.id },
+          select: { metadata: true }
+        });
+        
+        await prisma.document.update({
+          where: { id: document.id },
+          data: {
+            metadata: {
+              ...(currentDoc?.metadata as any || {}),
+              sentToN8nAt: new Date().toISOString(),
+              n8nResponseStatus: response.status,
+              processingState: "SENT_TO_N8N_SUCCESSFULLY"
+            }
+          }
+        });
       } else {
-        // If not successful but no error was thrown, mark as failed
-        await updateDocumentStatus(document.id, "FAILED", {
-          error: "Document processing did not return success status",
+        // There was an issue with the n8n request, but we'll keep the document in PROCESSING state
+        // since n8n might still process it
+        const currentDoc = await prisma.document.findUnique({
+          where: { id: document.id },
+          select: { metadata: true }
+        });
+        
+        await prisma.document.update({
+          where: { id: document.id },
+          data: {
+            metadata: {
+              ...(currentDoc?.metadata as any || {}),
+              sentToN8nAt: new Date().toISOString(),
+              n8nResponseStatus: response.status,
+              n8nResponseError: JSON.stringify(response.data || {}),
+              processingState: "N8N_REQUEST_ERROR_BUT_PROCESSING"
+            }
+          }
         });
       }
+      
+      // We don't update the document status here
+      // The webhook callback will handle updating the status when processing is complete
       
       return true;
     } catch (dbError) {
@@ -313,17 +372,36 @@ export async function sendDocumentToProcessing(document: {
       throw dbError;
     }
   } catch (error: any) {
-    // console.error("Error triggering n8n webhook:", error);
+    console.error("Error triggering n8n webhook:", error);
     
-    // Check if this is a 400 status code error
-    const errorMessage = error.response?.status === 400
-      ? `API returned 400 error: ${JSON.stringify(error.response?.data || {})}`
+    // Create a generic error message that doesn't depend on specific status codes
+    const errorMessage = error.response
+      ? `API error: ${JSON.stringify(error.response?.data || {})}`
       : "Failed to send to processing service";
     
-    // Update document status to FAILED if webhook call fails
-    await updateDocumentStatus(document.id, "FAILED", {
-      error: errorMessage,
-    });
+    try {
+      // Get current document metadata
+      const currentDoc = await prisma.document.findUnique({
+        where: { id: document.id },
+        select: { metadata: true }
+      });
+      
+      // Update document metadata to indicate the error, but keep it in PROCESSING state
+      // This allows the user to still cancel the document even if there was an error
+      await prisma.document.update({
+        where: { id: document.id },
+        data: {
+          metadata: {
+            ...(currentDoc?.metadata as any || {}),
+            n8nRequestError: errorMessage,
+            n8nRequestErrorAt: new Date().toISOString(),
+            processingState: "N8N_REQUEST_ERROR_BUT_PROCESSING"
+          }
+        }
+      });
+    } catch (metadataError) {
+      console.error("Error updating document metadata after n8n error:", metadataError);
+    }
     
     return false;
   }

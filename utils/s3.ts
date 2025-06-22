@@ -135,8 +135,8 @@ export async function uploadFileToS3(
         reject(new Error('Upload was cancelled'));
       });
       
-      // Set timeout to 5 minutes
-      xhr.timeout = 5 * 60 * 1000;
+      // Set timeout to 15 minutes
+      xhr.timeout = 15 * 60 * 1000;
       xhr.addEventListener('timeout', () => {
         activeUploads.delete(key);
         reject(new Error('Upload timed out'));

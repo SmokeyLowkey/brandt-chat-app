@@ -48,13 +48,14 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Create document in database
+      // Create document in database with initial metadata
+      // Note: Status will default to PROCESSING due to schema constraints,
+      // but we'll add a flag in metadata to indicate it's not yet being processed by n8n
       const document = await prisma.document.create({
         data: {
           name,
           type: name.split(".").pop() || "unknown",
           url,
-          status: "PROCESSING",
           userId,
           tenantId,
           metadata: {
@@ -63,8 +64,10 @@ export async function POST(request: NextRequest) {
             mimeType: type,
             s3Key: key,
             namespace: namespace || "General",
-            description: description || ""
-          },
+            description: description || "",
+            processingState: "UPLOADED_TO_S3", // Custom flag to track actual state
+            sentToProcessing: false // Will be set to true in sendDocumentToProcessing
+          }
         },
         select: {
           id: true
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
         userId,
       });
       
-      // Send document to processing service
+      // Now send the real document to processing service
       await sendDocumentToProcessing({
         id: document.id,
         url,

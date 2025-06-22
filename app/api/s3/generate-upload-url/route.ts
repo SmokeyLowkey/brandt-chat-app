@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     
     // Generate the pre-signed URL for upload
     const uploadUrl = await getSignedUrl(s3Client, putCommand, {
-      expiresIn: 300, // URL expires in 5 minutes
+      expiresIn: 900, // URL expires in 15 minutes
     });
 
     // Generate the public URL for the file
