@@ -154,7 +154,7 @@ export default function ChatContainer() {
     try {
       // Send message to API with increased timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minute timeout
+      const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 minute timeout to match server-side timeout
       
       const response = await fetch(`/api/tenants/${tenantId}/chat`, {
         method: 'POST',
@@ -285,9 +285,13 @@ export default function ChatContainer() {
       // Add specific error message based on error type
       let errorContent = "I'm sorry, I encountered an error processing your request. Please try again later.";
       
+      // Check if it's a max iterations error
+      if (error.message?.includes('max iterations')) {
+        errorContent = "I apologize, but I wasn't able to complete processing your request due to its complexity. Could you please try rephrasing your question or breaking it down into smaller parts?";
+      }
       // Check if it's a timeout error
-      if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('network')) {
-        errorContent = "I'm sorry, the request is taking longer than expected to process. The server might be experiencing high load. Please try again in a moment.";
+      else if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('network')) {
+        errorContent = "I'm sorry, the request is taking longer than expected to process. Please try rephrasing your question to be more specific or breaking it down into smaller parts.";
         
         // If this wasn't already a retry, schedule an automatic retry
         if (!isRetry && retryCount < 2) {

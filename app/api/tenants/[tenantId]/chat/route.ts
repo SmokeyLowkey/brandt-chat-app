@@ -271,11 +271,13 @@ export async function POST(
     // Create a more specific error message based on the error type
     let errorMessage = "Internal server error";
     let statusCode = 500;
+    let userFriendlyMessage = "I'm sorry, but I'm having trouble connecting to the AI service. Please try again in a moment.";
     
     // Check for timeout errors
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       errorMessage = "Request timed out. The service is taking longer than expected to respond.";
       statusCode = 504; // Gateway Timeout
+      userFriendlyMessage = "I apologize, but your question is taking longer than expected to process. Please try rephrasing your question to be more specific or breaking it down into smaller parts.";
       console.error("Timeout error details:", error.message);
     } else if (error.code === 'ECONNREFUSED' || error.message?.includes('connection refused')) {
       errorMessage = "Could not connect to the chat service. The service may be down.";
@@ -285,11 +287,18 @@ export async function POST(
       statusCode = 404; // Not Found
     }
     
+    // Check if the error might be related to "max iterations"
+    if (error.message?.includes('max iterations') ||
+        (error.response?.data && JSON.stringify(error.response.data).includes('max iterations'))) {
+      errorMessage = "Agent stopped due to max iterations";
+      userFriendlyMessage = "I apologize, but I wasn't able to complete processing your request due to its complexity. Could you please try rephrasing your question or breaking it down into smaller parts?";
+    }
+    
     return NextResponse.json(
       {
         error: errorMessage,
         isFallbackMode: true,
-        content: "I'm sorry, but I'm having trouble connecting to the AI service. Please try again in a moment."
+        content: userFriendlyMessage
       },
       { status: statusCode }
     );

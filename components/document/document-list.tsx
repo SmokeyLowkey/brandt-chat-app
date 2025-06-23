@@ -101,11 +101,23 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
     return date.toLocaleDateString()
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, doc?: Document) => {
     switch (status) {
       case "PROCESSED":
         return "bg-green-100 text-green-800"
       case "PROCESSING":
+        // Check if the document has been in processing state for too long (over 10 minutes)
+        if (doc) {
+          const metadata = doc.metadata as any || {};
+          const processingStartedAt = metadata.processingStartedAt ? new Date(metadata.processingStartedAt) : null;
+          const now = new Date();
+          const tenMinutesInMs = 10 * 60 * 1000;
+          
+          if (processingStartedAt && (now.getTime() - processingStartedAt.getTime() > tenMinutesInMs)) {
+            // If processing for too long, show a warning color
+            return "bg-yellow-100 text-yellow-800"
+          }
+        }
         return "bg-blue-100 text-blue-800"
       case "FAILED":
         return "bg-red-100 text-red-800"
@@ -156,9 +168,16 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
                 <div className="col-span-2">{doc.metadata ? formatFileSize(doc.metadata.size) : "Unknown"}</div>
                 <div className="col-span-2">
                   <span
-                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(doc.status)}`}
+                    className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(doc.status, doc)}`}
                   >
-                    {doc.status.charAt(0) + doc.status.slice(1).toLowerCase()}
+                    {doc.status === "PROCESSING" ? (
+                      <>
+                        <span className="mr-1">Processing</span>
+                        <span className="inline-block h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+                      </>
+                    ) : (
+                      doc.status.charAt(0) + doc.status.slice(1).toLowerCase()
+                    )}
                   </span>
                 </div>
                 <div className="col-span-1 flex justify-end gap-1">

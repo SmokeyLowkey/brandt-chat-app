@@ -90,8 +90,16 @@ export async function POST(request: NextRequest) {
         userId,
       });
       
-      // Now send the real document to processing service
-      await sendDocumentToProcessing({
+      // Return success immediately to prevent timeout
+      // We'll process the document asynchronously
+      const response = NextResponse.json({
+        success: true,
+        documentId: document.id
+      });
+      
+      // Start document processing in the background without awaiting
+      // This prevents API timeout issues
+      sendDocumentToProcessing({
         id: document.id,
         url,
         type,
@@ -102,12 +110,11 @@ export async function POST(request: NextRequest) {
         mimeType: type,
         namespace: namespace || "General",
         description: description || "",
+      }).catch(error => {
+        console.error(`Background processing error for document ${document.id}:`, error);
       });
       
-      return NextResponse.json({ 
-        success: true,
-        documentId: document.id
-      });
+      return response;
     } catch (error: any) {
       console.error("Error creating document:", error);
       return NextResponse.json(

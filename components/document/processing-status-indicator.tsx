@@ -141,8 +141,8 @@ export function ProcessingStatusIndicator() {
                           </div>
                           <p className="text-xs text-gray-500">
                             {upload.status === 'uploading' && `Uploading (${upload.progress}%)`}
-                            {upload.status === 'processing' && 'Processing...'}
-                            {upload.status === 'complete' && 'Processing complete'}
+                            {upload.status === 'processing' && 'Processing... This may take a few minutes'}
+                            {upload.status === 'complete' && 'Processing complete - Document ready'}
                             {upload.status === 'failed' && (upload.error || 'Processing failed')}
                           </p>
                           <p className="text-xs text-gray-400 mt-1">

@@ -486,8 +486,8 @@ export async function sendChatMessage(
         
         const response = await axios.post(n8nChatWebhookUrl, payload, {
           headers,
-          // Significantly increased timeout to allow more time for webhook processing in production
-          timeout: 180000, // 180 seconds (3 minutes) instead of 60 seconds
+          // Further increased timeout to allow more time for webhook processing in production
+          timeout: 240000, // 240 seconds (4 minutes) instead of 3 minutes
           validateStatus: (status) => status < 500 // Don't throw for 4xx errors
         });
         
@@ -524,7 +524,7 @@ export async function sendChatMessage(
           // Add specific handling for timeout errors
           if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
             console.error("Request timeout error:", error.message);
-            fallbackMessage = "I apologize, but the request is taking longer than expected to process. Your message has been saved and will be processed when the service is available. Please try again in a moment.";
+            fallbackMessage = "I apologize, but the request is taking longer than expected to process. Your message has been saved and will be processed when the service is available. Please try again in a moment or try rephrasing your question to be more specific.";
           }
           
           // Use a fallback response
@@ -754,6 +754,17 @@ export async function sendChatMessage(
           responseData["RESPONSE FROM WEBHOOK SUCCEEDED"].length > 0) {
         
         const webhookResponse = responseData["RESPONSE FROM WEBHOOK SUCCEEDED"][0];
+        
+        // Check for "Agent stopped due to max iterations" case
+        if (webhookResponse.output === "Agent stopped due to max iterations.") {
+          console.log("Detected 'Agent stopped due to max iterations' response");
+          return {
+            role: "assistant",
+            content: "I apologize, but I wasn't able to complete processing your request due to its complexity. Could you please try rephrasing your question or breaking it down into smaller parts?",
+            timestamp: new Date().toISOString(),
+            isFallbackMode: true
+          };
+        }
         if (webhookResponse.output) {
           // Try to parse the output as JSON if it's a string
           if (typeof webhookResponse.output === 'string') {
