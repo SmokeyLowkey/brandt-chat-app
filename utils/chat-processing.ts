@@ -282,6 +282,9 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
       // Extract the text part (without the JSON)
       const cleanedText = text.substring(0, jsonStartIndex).trim();
       
+      // Log the extracted component data
+      console.log("Extracted component data from Anthropic response:", JSON.stringify(parsedData));
+      
       return {
         componentData: parsedData,
         cleanedText
@@ -557,6 +560,9 @@ export async function sendChatMessage(
         if (parsedData.component && parsedData.props) {
           componentData = parsedData;
           
+          // Log the extracted component data from string response
+          console.log("Extracted component data from string response:", JSON.stringify(parsedData));
+          
           // Handle different component types
           if (parsedData.component === "SimpleText") {
             responseContent = parsedData.props.text || "Component response";
@@ -602,6 +608,10 @@ export async function sendChatMessage(
               // console.log("Detected Anthropic response format");
               componentData = anthropicResult.componentData;
               responseContent = anthropicResult.cleanedText;
+              
+              // Log the extracted component data from array response (Anthropic format)
+              console.log("Extracted component data from array response (Anthropic format):",
+                JSON.stringify(anthropicResult.componentData));
             } else {
               // Not an Anthropic response, proceed with original logic
               // Check if the string starts with triple backticks for code blocks
@@ -755,6 +765,10 @@ export async function sendChatMessage(
                 // console.log("Detected Anthropic response format");
                 componentData = anthropicResult.componentData;
                 responseContent = anthropicResult.cleanedText;
+                
+                // Log the extracted component data from object response
+                console.log("Extracted component data from object response:",
+                  JSON.stringify(anthropicResult.componentData));
               } else {
                 // Not an Anthropic response, proceed with original logic
                 // Check if the string starts with triple backticks for code blocks
@@ -845,6 +859,9 @@ export async function sendChatMessage(
       isFallbackMode: responseData.isFallbackMode === true,
       componentData: componentData
     };
+    
+    // Log the final formatted assistant message
+    console.log("Final formatted assistant message:", JSON.stringify(assistantMessage));
     
     return assistantMessage;
   } catch (error) {

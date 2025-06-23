@@ -72,6 +72,8 @@ export default function ChatContainer() {
         role: msg.role === "USER" ? "user" : "assistant",
         content: msg.content,
         timestamp: new Date(msg.createdAt),
+        // Extract componentData from jsonData if it exists
+        componentData: msg.jsonData?.componentData || undefined
       }));
       
       setMessages(loadedMessages);

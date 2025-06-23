@@ -36,6 +36,14 @@ export async function GET(
           orderBy: {
             createdAt: "asc",
           },
+          // Explicitly include the jsonData field
+          select: {
+            id: true,
+            role: true,
+            content: true,
+            createdAt: true,
+            jsonData: true
+          }
         },
       },
     });

@@ -219,6 +219,9 @@ export async function POST(
       sessionId // Pass the generated session ID
     );
     
+    // Log the raw response received from the webhook
+    console.log("Raw webhook response:", JSON.stringify(response));
+    
     // Check if the response is in fallback mode
     const isFallbackMode = response.isFallbackMode === true;
 
@@ -228,6 +231,10 @@ export async function POST(
         role: "ASSISTANT",
         content: response.content,
         conversationId: conversation.id,
+        // Store the component data in the jsonData field if it exists
+        jsonData: 'componentData' in response && response.componentData
+          ? { componentData: (response as any).componentData }
+          : undefined,
       },
     });
 
@@ -253,6 +260,9 @@ export async function POST(
     if ('componentData' in response && response.componentData) {
       (responseData as any).componentData = (response as any).componentData;
     }
+    
+    // Log the final formatted response object being sent to the client
+    console.log("Final formatted response:", JSON.stringify(responseData));
     
     return NextResponse.json(responseData);
   } catch (error: any) {
