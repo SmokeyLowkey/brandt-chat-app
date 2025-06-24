@@ -85,21 +85,23 @@ export function DocumentDetails({ document, isOpen, onClose }: DocumentDetailsPr
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            <span className="truncate">{document.name}</span>
+      <DialogContent className="sm:max-w-xl w-[95%] md:w-[600px]" style={{ maxHeight: 'fit-content' }}>
+        <DialogHeader className="pb-2">
+          <DialogTitle className="flex items-center gap-3 text-xl">
+            <FileText className="h-6 w-6 flex-shrink-0 text-[#E31937]" />
+            <div className="max-w-[calc(100%-3rem)] overflow-hidden">
+              <div className="truncate font-bold" title={document.name}>{document.name}</div>
+            </div>
           </DialogTitle>
-          <DialogDescription>Document details and metadata</DialogDescription>
+          <DialogDescription className="text-sm mt-2">Document details and metadata</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-6 py-6 px-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Status:</span>
-            <Badge className={`flex items-center gap-1 ${getStatusColor(document.status)}`}>
+            <Badge className={`flex items-center gap-1 px-3 py-1.5 ${getStatusColor(document.status)}`}>
               {getStatusIcon(document.status)}
-              <span>{document.status.charAt(0) + document.status.slice(1).toLowerCase()}</span>
+              <span className="text-sm">{document.status.charAt(0) + document.status.slice(1).toLowerCase()}</span>
             </Badge>
           </div>
 
@@ -112,7 +114,7 @@ export function DocumentDetails({ document, isOpen, onClose }: DocumentDetailsPr
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Size:</span>
               <div className="flex items-center gap-1 text-sm">
-                <HardDrive className="h-3.5 w-3.5 text-gray-500" />
+                <HardDrive className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
                 <span>{formatFileSize(document.metadata.size)}</span>
               </div>
             </div>
@@ -121,16 +123,20 @@ export function DocumentDetails({ document, isOpen, onClose }: DocumentDetailsPr
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Created:</span>
             <div className="flex items-center gap-1 text-sm">
-              <Calendar className="h-3.5 w-3.5 text-gray-500" />
-              <span>{formatDate(document.createdAt)}</span>
+              <Calendar className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+              <span title={formatDate(document.createdAt)}>
+                {formatDate(document.createdAt)}
+              </span>
             </div>
           </div>
 
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Updated:</span>
             <div className="flex items-center gap-1 text-sm">
-              <Calendar className="h-3.5 w-3.5 text-gray-500" />
-              <span>{formatDate(document.updatedAt)}</span>
+              <Calendar className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
+              <span title={formatDate(document.updatedAt)}>
+                {formatDate(document.updatedAt)}
+              </span>
             </div>
           </div>
 
@@ -138,16 +144,18 @@ export function DocumentDetails({ document, isOpen, onClose }: DocumentDetailsPr
           {(document.metadata as any)?.namespace && (
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Namespace:</span>
-              <span className="text-sm">{(document.metadata as any).namespace}</span>
+              <span className="text-sm" title={(document.metadata as any).namespace}>
+                {(document.metadata as any).namespace}
+              </span>
             </div>
           )}
 
           {/* Display description if available */}
           {(document.metadata as any)?.description && (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-2">
               <span className="text-sm font-medium">Description:</span>
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
-                <p className="text-sm whitespace-pre-line">{(document.metadata as any).description}</p>
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                <p className="text-sm whitespace-pre-line break-words leading-relaxed">{(document.metadata as any).description}</p>
               </div>
             </div>
           )}
@@ -164,31 +172,32 @@ export function DocumentDetails({ document, isOpen, onClose }: DocumentDetailsPr
           )}
 
           {document.status === "FAILED" && document.metadata?.error && (
-            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
+            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
               <div className="flex items-start">
-                <AlertTriangle className="mr-2 h-4 w-4 text-red-500" />
+                <AlertTriangle className="mr-3 h-5 w-5 text-red-500 flex-shrink-0" />
                 <div>
                   <h4 className="text-sm font-medium text-red-800">Processing Error</h4>
-                  <p className="mt-1 text-xs text-red-700">{document.metadata.error}</p>
+                  <p className="mt-2 text-sm text-red-700 break-words leading-relaxed">{document.metadata.error}</p>
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        <DialogFooter className="sm:justify-between">
+        <DialogFooter className="sm:justify-between pt-4">
           <Button
             variant="outline"
-            size="sm"
+            size="default"
             onClick={onClose}
           >
             Close
           </Button>
           <Button
             variant="default"
-            size="sm"
+            size="default"
             disabled={isLoading || !downloadUrl}
             asChild={!isLoading && !!downloadUrl}
+            className="bg-[#E31937] hover:bg-[#c01730]"
           >
             {isLoading ? (
               <span>Loading...</span>

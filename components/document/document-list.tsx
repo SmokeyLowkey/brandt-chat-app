@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { FileText, Trash2, Eye, Plus, RefreshCw, RotateCw } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { DocumentDetails } from "./document-details"
+import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useToast } from "@/components/ui/use-toast"
 
 interface DocumentListProps {
@@ -21,6 +22,8 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [retryingDocuments, setRetryingDocuments] = useState<Set<string>>(new Set())
+  const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   
   // Debug: Log documents being received
   // console.log("DocumentList received documents:", documents)
@@ -85,6 +88,23 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
 
   const handleCloseDetails = () => {
     setIsDetailsOpen(false)
+  }
+
+  const handleDeleteClick = (doc: Document) => {
+    setDocumentToDelete(doc)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (documentToDelete) {
+      onDocumentDelete(documentToDelete.id)
+    }
+    setDocumentToDelete(null)
+  }
+
+  const handleDeleteCancel = () => {
+    setIsDeleteDialogOpen(false)
+    setDocumentToDelete(null)
   }
 
   const formatFileSize = (bytes?: number) => {
@@ -158,11 +178,13 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
             documents.map((doc) => (
               <div key={doc.id} className="grid grid-cols-12 gap-2 p-4 text-sm items-center">
                 <div className="col-span-4 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-gray-400" />
-                  <span className="font-medium truncate">{doc.name}</span>
+                  <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                  <span className="font-medium truncate max-w-[250px]" title={doc.name}>{doc.name}</span>
                 </div>
                 <div className="col-span-2">
-                  {(doc.metadata as any)?.namespace || "General"}
+                  <span className="truncate max-w-[120px] inline-block" title={(doc.metadata as any)?.namespace || "General"}>
+                    {(doc.metadata as any)?.namespace || "General"}
+                  </span>
                 </div>
                 <div className="col-span-1">{doc.type.toUpperCase()}</div>
                 <div className="col-span-2">{doc.metadata ? formatFileSize(doc.metadata.size) : "Unknown"}</div>
@@ -206,11 +228,7 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to delete "${doc.name}"?`)) {
-                        onDocumentDelete(doc.id);
-                      }
-                    }}
+                    onClick={() => handleDeleteClick(doc)}
                     title="Delete document"
                   >
                     <Trash2 className="h-4 w-4 text-gray-500" />
@@ -229,6 +247,15 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
           document={selectedDocument}
           isOpen={isDetailsOpen}
           onClose={handleCloseDetails}
+        />
+      )}
+
+      {documentToDelete && (
+        <DeleteConfirmationDialog
+          documentName={documentToDelete.name}
+          isOpen={isDeleteDialogOpen}
+          onClose={handleDeleteCancel}
+          onConfirm={handleDeleteConfirm}
         />
       )}
     </>
