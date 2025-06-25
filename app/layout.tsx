@@ -7,7 +7,7 @@ import { Toaster } from 'sonner'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Brandt AI Assistant',
+  title: 'PartsIQ AI Assistant',
   description: 'AI-powered assistant for the aftersales parts industry',
   generator: 'v0.dev',
 }
