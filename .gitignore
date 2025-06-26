@@ -26,3 +26,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /lib/generated/prisma
+
+# N8N workflow files
+/N8N_WORKFLOW/
+
+# Scripts directory
+/scripts/
+
+# Markdown files
+*.md
