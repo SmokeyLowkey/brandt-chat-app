@@ -11,7 +11,8 @@ export async function GET(
 ) {
   try {
     // Access params inside async context
-    const { tenantId, documentId } = context.params;
+    const params = await context.params;
+    const { tenantId, documentId } = params;
     const session = await getServerSession(authOptions)
     
     if (!session) {
@@ -59,7 +60,8 @@ export async function PATCH(
 ) {
   try {
     // Access params inside async context
-    const { tenantId, documentId } = context.params;
+    const params = await context.params;
+    const { tenantId, documentId } = params;
     const session = await getServerSession(authOptions)
     
     if (!session) {
@@ -136,7 +138,8 @@ export async function DELETE(
 ) {
   try {
     // Access params inside async context
-    const { tenantId, documentId } = context.params;
+    const params = await context.params;
+    const { tenantId, documentId } = params;
     // console.log(`DELETE request for document: ${documentId} in tenant: ${tenantId}`)
     
     const session = await getServerSession(authOptions)

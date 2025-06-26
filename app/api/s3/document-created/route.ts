@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     // Parse the request body
     const body = await request.json();
-    const { key, url, name, size, type, overrideTenantId, namespace, description } = body;
+    const { key, url, name, size, type, overrideTenantId, namespace, description, text_blocks_redacted } = body;
     
     // Get tenant ID from session or use override for admins
     let tenantId = session.user.tenantId;
@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       // Create document in database with initial metadata
       // Note: Status will default to PROCESSING due to schema constraints,
       // but we'll add a flag in metadata to indicate it's not yet being processed by n8n
+      // Create document without the text_blocks_redacted field
       const document = await prisma.document.create({
         data: {
           name,
@@ -110,6 +111,7 @@ export async function POST(request: NextRequest) {
         mimeType: type,
         namespace: namespace || "General",
         description: description || "",
+        text_blocks_redacted: text_blocks_redacted ? JSON.stringify(text_blocks_redacted) : undefined,
       }).catch(error => {
         console.error(`Background processing error for document ${document.id}:`, error);
       });

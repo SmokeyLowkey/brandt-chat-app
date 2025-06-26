@@ -15,6 +15,7 @@ export interface Document {
     error?: string
     failedAt?: string
   }
+  text_blocks_redacted?: string  // JSON string of text elements with bounding boxes
   tenantId: string
   createdById: string
   createdAt: string
@@ -33,6 +34,7 @@ export interface DocumentCreateParams {
     namespace?: string
     description?: string
   }
+  text_blocks_redacted?: string  // JSON string of text elements with bounding boxes
 }
 
 export interface DocumentUpdateParams {
@@ -45,6 +47,7 @@ export interface DocumentUpdateParams {
     namespace?: string
     description?: string
   }
+  text_blocks_redacted?: string  // JSON string of text elements with bounding boxes
 }
 
 export class DocumentService {

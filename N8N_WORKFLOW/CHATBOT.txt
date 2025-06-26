@@ -1,0 +1,716 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=<role_and_goal>\nYou are an expert product support representative and a master search specialist for Brandt. Your persona is professional, direct, and helpful. Your primary goal is to accurately answer user questions by intelligently searching a secure knowledge base. You must be proactive, asking clarifying questions when the user is ambiguous and guiding them toward the precise information they need.\n</role_and_goal>\n\n<reasoning_process>\nYour process is a step-by-step decision tree. Follow these steps in order for every user message.\n\nStep 1: Analyze the User's Intent and Available Information\nFirst, carefully review all the information provided to you:\n\nThe user's most recent message.\n\nThe Conversation History.\n\nThe structured Enhanced Context Data.\n\nThe list of Available Namespaces for this user. This list is your ground truth for which data partitions you can search.\n\nStep 2: Decide on Your Action Path\nBased on your analysis, you will choose one of three paths. You must check for Path A's conditions first.\n\n<path_a>\nPath A: Get Missing Brand/Manufacturer (Highest Priority)\n\nWHEN TO USE: This is your first and most important check. Choose this path if the user's message contains a product type (e.g., \"mirror\", \"clutch\", \"fuel tank\") but lacks a specific brand name (e.g., \"TRP\", \"SACHS\") that you can confirm from the Available Namespaces.\n\nACTION:\n\nSTOP. Do NOT call the KNOWLEDGE BASE tool.\n\nYour response should be only a brief, direct question to get the missing brand. Do not provide product information.\n\nYour entire response MUST be a SimpleText JSON object containing your question.\n\n<example>\n* **User Message:** \"im looking for a truck mirror\"\n* **Your Decision:** The user wants a \"mirror\" but did not specify a brand. I must use Path A to ask for it.\n* **Your Output:**\n```json\n{\n\"component\": \"SimpleText\",\n\"props\": {\n\"text\": \"Certainly. Which brand of truck mirror are you looking for? For example, TRP or SACHS.\"\n}\n}\n```\n</example>\n</path_a>\n\n<path_b>\nPath B: Search, then Refine (Brand is Known, Details are Missing)\n\nWHEN TO USE: Choose this path only if the conditions for Path A are not met. Use it when a brand is known (from the current message or history), but the request is broad and lacks specific details for a metadata filter (e.g., no mention of \"catalog\", \"spec sheet\", etc.).\n\nACTION:\n\nCall the KNOWLEDGE BASE tool. Formulate a broad query with the correct namespaces but an empty metadataFilter.\n\nAfter the tool returns data, synthesize a very brief, one-sentence summary.\n\nEnd your response by asking a clarifying question to offer refinement based on filterable metadata fields (document_type, keywords).\n\n<example>\n* **User Message:** \"Tell me more about TRP mirrors\"\n* **Your Decision:** The brand \"TRP\" is known, but the query is broad. I will use Path B to do a general search and then ask to refine.\n* **Tool Call:** `KNOWLEDGE_BASE(query=\"information on TRP mirrors\", namespaces=[\"TRP\"], metadataFilter={})`\n* **Your Final Output (after receiving tool results):**\n```json\n{\n\"component\": \"SimpleText\",\n\"props\": {\n\"text\": \"TRP offers a range of mirrors for various applications. To find specific details, are you interested in a catalog, spec sheet, or installation guide?\"\n}\n}\n```\n</example>\n</path_b>\n\n<path_c>\nPath C: Search and Answer Directly (Specific and Filtered Query)\n\nWHEN TO USE: Choose this path when the user's query is highly specific and includes details that directly map to a metadata filter (e.g., \"TRP catalog,\" \"SACHS clutch specs\"), or if the conversation history provides all necessary context.\n\nACTION:\n\nCall the KNOWLEDGE BASE tool. Formulate a precise, filtered query using both namespaces and a populated metadataFilter.\n\nSynthesize a direct, factual answer based STRICTLY on the retrieved information. Use the SimpleText or ProductSpecs JSON schema.\n\n<example>\n* **User Message:** \"I need the TRP catalog for mirrors.\"\n* **Your Decision:** The query is highly specific. I will perform a filtered search and answer directly.\n* **Tool Call:** `KNOWLEDGE_BASE(query=\"TRP mirror catalog\", namespaces=[\"TRP\"], metadataFilter={\"document_type\": {\"$eq\": \"catalog\"}})`\n* **Your Final Output:** (A `ProductSpecs` or `SimpleText` component with the catalog information).\n</example>\n</path_c>\n\nStep 3: How to Construct the KNOWLEDGE BASE Tool Call (for Paths B and C)\nWhen you call the tool, you must construct the parameters correctly:\n\nnamespaces: Select the appropriate namespace(s) from the Available Namespaces list. This MUST be a JSON array (e.g., [\"TRP\"]). You MUST NOT use a namespace not on the list.\n\nmetadataFilter: If the user has provided refinement criteria, create a JSON filter object. The filterable fields are manufacturer, document_type, and keywords. If no criteria are provided, send an empty object: {}.\n\nquery: Formulate a concise, semantic representation of the user's core need (e.g., \"TRP mirror specifications\").\n</reasoning_process>\n\n<critical_rules>\n\nSecurity: You MUST NOT, under any circumstances, reveal internal system details. This includes but is not limited to: database names like \"Pinecone\", specific URLs, APIs, or internal processes. You interact with a \"secure knowledge base\" via a \"tool.\" That is all you know.\n\nJSON Output Only: Your entire final output to the user MUST be a single, valid JSON object that conforms to one of the provided JSON Output Schemas. Do not include any text, notes, or explanations outside of the JSON structure.\n\nContextual Awareness: Always use the Conversation History and Enhanced Context Data to inform your decisions, especially for follow-up questions. Do not ask the user to repeat information you already have.\n</critical_rules>\n\n<json_schemas>\n\nJSON Output Schemas\nUse one of the following component schemas based on the nature of the answer.\n\nA) For simple text-based answers or questions:\n{\n  \"component\": \"SimpleText\",\n  \"props\": {\n    \"text\": \"Your concise, text-based answer or clarifying question goes here.\"\n  }\n}\n\nB) For structured product specifications:\n\n{\n  \"documentId\": \"documentId\",\n  \"component\": \"ProductSpecs\",\n  \"props\": {\n    \"introduction\": \"A brief introductory sentence about the specifications.\",\n    \"specs\": [\n      { \"key\": \"Part Numbers\", \"value\": \"List relevant part numbers from context\" },\n      { \"key\": \"Vehicle Compatibility\", \"value\": \"List compatible vehicles\" },\n      { \"key\": \"Features\", \"value\": \"Description of features...\" }\n    ],\n    \"note\": \"An important final note for the user.\"\n  }\n}\n\n</json_schemas>"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        -220
+      ],
+      "id": "b3ac1673-3a3b-43ea-b9ad-46de35bdea9f",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        900,
+        180
+      ],
+      "id": "b6b80eb9-c6ef-444a-8ab1-60f8a7d08f54",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "rp0scflg35pHQjNZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 200
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1060,
+        -20
+      ],
+      "id": "81e50f19-36bf-4a7d-9ae1-35d66ed42c91",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "description": "USE THIS TOOL TO SEARCH THE KNOWLEDGEBASE. You must provide the user's query, the target namespaces, and an optional metadataFilter.",
+        "workflowId": {
+          "__rl": true,
+          "value": "WXZhuTl0ym1rZ4JY",
+          "mode": "list",
+          "cachedResultName": "DOCUMENT CHATBOT HYBRID"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}",
+            "host": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('host', ``, 'string') }}",
+            "metadataFilter": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('metadataFilter', ``, 'string') }}",
+            "namespaces": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('namespaces', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "host",
+              "displayName": "host",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "namespaces",
+              "displayName": "namespaces",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "metadataFilter",
+              "displayName": "metadataFilter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1280,
+        120
+      ],
+      "id": "71f530d3-32ad-4e97-925f-7617a10af3ef",
+      "name": "KNOWLEDGE BASE"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f39ceabf-3382-473a-b13c-ced8d33b0ffa",
+              "name": "query",
+              "value": "={{ $json.query }}",
+              "type": "string"
+            },
+            {
+              "id": "b28fa68b-fa94-472c-b8fb-20eeaacbee5c",
+              "name": "host",
+              "value": "={{$json.host}}",
+              "type": "string"
+            },
+            {
+              "id": "8ab0fe85-6c09-40ab-a442-fc11fdda3178",
+              "name": "NAMESPACE",
+              "value": "={{ $json.namespaces }}",
+              "type": "string"
+            },
+            {
+              "id": "1d64c5aa-66e7-4004-ac37-a22ec21a5516",
+              "name": "metadataFilter",
+              "value": "={{ $json.metadataFilter }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1700,
+        -240
+      ],
+      "id": "867dce9e-73c9-468e-86e2-d1e1dee7fbcf",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pinecone.io/embed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Pinecone-API-Version",
+              "value": "2025-04"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-text-embed-v2\",\n  \"parameters\": {\n    \"input_type\": \"query\",\n    \"truncate\": \"END\"\n  },\n  \"inputs\":[\n      {\"text\":{{JSON.stringify($json.query) }} }\n  ] \n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1860,
+        -240
+      ],
+      "id": "ab107ba4-a2db-4246-ae01-ed8874408b72",
+      "name": "DENSE EMBED1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pinecone.io/embed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Pinecone-API-Version",
+              "value": "2025-04"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"pinecone-sparse-english-v0\",\n  \"parameters\": {\n    \"input_type\": \"query\",\n    \"truncate\": \"END\"\n  },\n  \"inputs\": {{ JSON.stringify([{ \"text\": $('Edit Fields').item.json.query }]) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        -240
+      ],
+      "id": "889d3ecb-56aa-4c3f-b996-973cf7d5b194",
+      "name": "SPARSE EMBED1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$('Edit Fields').item.json.host}}/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Pinecone-API-Version",
+              "value": "2025-04"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"namespace\": \"{{ $('Edit Fields').item.json.NAMESPACE }}\",\n  \"vector\": {{ JSON.stringify($('DENSE EMBED1').item.json.data[0].values) }},\n  \"sparseVector\": {\n    \"indices\": {{ JSON.stringify($json.data[0].sparse_indices) }},\n    \"values\": {{ JSON.stringify($json.data[0].sparse_values) }}\n  },\n  \"topK\": 15,\n  \"includeValues\": false,\n  \"includeMetadata\": true\n{{ Object.keys($('Edit Fields').item.json.metadataFilter).length > 0 ? ',\"filter\": ' + JSON.stringify($('Edit Fields').item.json.metadataFilter) : '' }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2340,
+        -300
+      ],
+      "id": "308bdffd-3a26-4ebc-86e8-f2e481c97a7b",
+      "name": "QUERY PINECONE",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "query"
+            },
+            {
+              "name": "host"
+            },
+            {
+              "name": "namespaces",
+              "type": "any"
+            },
+            {
+              "name": "metadataFilter",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1380,
+        -240
+      ],
+      "id": "5e26939e-8a8c-43f6-a715-02481f0e427b",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "public": true,
+        "mode": "webhook",
+        "authentication": "basicAuth",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        360,
+        -360
+      ],
+      "id": "d268e321-7fde-473e-a9a4-73e67372e45e",
+      "name": "When chat message received",
+      "webhookId": "6c338e08-7a27-41e6-a1fc-730274451fe2",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "PqiZznLayUe5hfqs",
+          "name": "test creds"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# Chat workflow\n",
+        "height": 700,
+        "width": 2140,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        320,
+        -440
+      ],
+      "id": "136b4988-d2c0-4579-bd9f-d1940a8fd4f8",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatEnd",
+        "authentication": "jwtAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        360,
+        -160
+      ],
+      "id": "e1f17f84-aea0-4bd1-8cf6-3f3759a186c8",
+      "name": "Webhook",
+      "webhookId": "e3a28421-26db-42bf-bf5a-7f6e980237db",
+      "credentials": {
+        "jwtAuth": {
+          "id": "RmCCcyDfAVkrTEqy",
+          "name": "JWT Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {
+          "responseCode": 200,
+          "responseKey": "RESPONSE FROM WEBHOOK SUCCEEDED"
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1380,
+        -20
+      ],
+      "id": "861bc517-b661-4a6e-96e7-4e7f42a48b37",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4a78c863-9047-4565-b3c8-7324f71967b2",
+              "name": "body.message",
+              "value": "={{ $json.body.message }}",
+              "type": "string"
+            },
+            {
+              "id": "f7f82b4c-3d59-4c5d-a451-7485426337ac",
+              "name": "body.chatHistory",
+              "value": "={{ $json.body.chatHistory }}",
+              "type": "array"
+            },
+            {
+              "id": "c865bf86-e30e-4879-83d5-d0af8dacbd54",
+              "name": "body.tenantId",
+              "value": "={{ $json.body.tenantId }}",
+              "type": "string"
+            },
+            {
+              "id": "67979043-a94e-45bb-86fa-e2376f253704",
+              "name": "body.query",
+              "value": "={{ $json.body.query }}",
+              "type": "string"
+            },
+            {
+              "id": "bb2fc1af-4736-468c-aba9-f9efdeaf04c8",
+              "name": "sessionId",
+              "value": "={{ $json.jwtPayload.sessionId }}",
+              "type": "string"
+            },
+            {
+              "id": "ef569013-a04f-4e74-8eeb-2ac9b60c4a8c",
+              "name": "chatInput",
+              "value": "=# Here is the users message: {{ $json.body.message }}\n\n# And this is the Chat History: {{ JSON.stringify($json.body.chatHistory) }}\n\n# Context: {{ $json.body.context }}\n\n# Context Data: {{ JSON.stringify($json.body.contextData) }}\n\n# This is the Pinecone url to get the index data:https://api.pinecone.io/indexes/tenant-{{ $json.jwtPayload.tenantId }}\n\n# Available Namespaces in the Vector Database: {{ $json.body.namespaces }}\n\n",
+              "type": "string"
+            },
+            {
+              "id": "a449263f-5d79-4f00-961d-9c60d29f315f",
+              "name": "body.namespaces",
+              "value": "={{ $json.body.namespaces }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        580,
+        -160
+      ],
+      "id": "3455540b-9678-495f-b217-622a85cb115e",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Use this tool to get the index host url to send to the knowledgebase tool",
+        "url": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('URL', ``, 'string') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        120
+      ],
+      "id": "22711f24-461e-4aa1-87f5-75c86cec5b55",
+      "name": "Get the Index from Pinecone",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "daa14b0c-f7a5-4832-85f0-42dc33662227",
+              "leftValue": "={{$('Edit Fields').item.json.host}}",
+              "rightValue": "https://",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2160,
+        -240
+      ],
+      "id": "55b44181-835f-4ecc-8f0d-350ccee2001d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{$('Edit Fields').item.json.host}}/query",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Pinecone-API-Version",
+              "value": "2025-04"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"namespace\": \"{{ $('Edit Fields').item.json.NAMESPACE }}\",\n  \"vector\": {{ JSON.stringify($('DENSE EMBED1').item.json.data[0].values) }},\n  \"sparseVector\": {\n    \"indices\": {{ JSON.stringify($json.data[0].sparse_indices) }},\n    \"values\": {{ JSON.stringify($json.data[0].sparse_values) }}\n  },\n  \"topK\": 15,\n  \"includeValues\": false,\n  \"includeMetadata\": true\n{{ Object.keys($('Edit Fields').item.json.metadataFilter).length > 0 ? ',\"filter\": ' + JSON.stringify($('Edit Fields').item.json.metadataFilter) : '' }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2340,
+        -140
+      ],
+      "id": "5a987562-a921-46ff-a076-3b18f74b1799",
+      "name": "QUERY PINECONE1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-3-7-sonnet-20250219",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 3.7"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        860,
+        20
+      ],
+      "id": "2a299bd7-f6c9-475e-8cd3-8926fa1717fb",
+      "name": "Anthropic Chat Model",
+      "credentials": {
+        "anthropicApi": {
+          "id": "tXsouoiyMIvp5spr",
+          "name": "Anthropic account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KNOWLEDGE BASE": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "DENSE EMBED1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DENSE EMBED1": {
+      "main": [
+        [
+          {
+            "node": "SPARSE EMBED1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SPARSE EMBED1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        []
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get the Index from Pinecone": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "QUERY PINECONE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "QUERY PINECONE1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "16bb6e4703e9bb77f0308d1733bd5fa0cbacadc025be0d68d1955e998d6a9b08"
+  }
+}

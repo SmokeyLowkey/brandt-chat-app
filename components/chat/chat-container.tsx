@@ -8,6 +8,8 @@ import ChatHistoryPanel from "@/components/chat/chat-history-panel";
 import ChatMessage from "@/components/chat/chat-message";
 import TypingIndicator from "@/components/chat/typing-indicator";
 import ChatInput from "@/components/chat/chat-input";
+import { PDFViewerIframe } from "@/components/document/pdf-viewer-iframe";
+import { usePdfViewer } from "@/hooks/use-pdf-viewer";
 
 import { ComponentData } from "@/utils/chat-processing";
 
@@ -103,8 +105,8 @@ export default function ChatContainer() {
   };
   
   // Delete conversation
-  const deleteConversation = async (conversationId: string) => {
-    if (!session || !tenantId) return;
+  const deleteConversation = async (conversationId: string): Promise<boolean> => {
+    if (!session || !tenantId) return false;
     
     try {
       const response = await fetch(`/api/tenants/${tenantId}/conversations/${conversationId}`, {
@@ -119,8 +121,12 @@ export default function ChatContainer() {
       if (selectedConversationId === conversationId) {
         createNewConversation();
       }
+      
+      // Return success to allow the chat history panel to update immediately
+      return true;
     } catch (error) {
       console.error('Error deleting conversation:', error);
+      return false;
     }
   };
 
@@ -320,6 +326,9 @@ export default function ChatContainer() {
     }
   };
 
+  // PDF viewer state
+  const { isOpen, selectedCitation, openPdfViewer, closePdfViewer } = usePdfViewer();
+
   return (
     <div className="flex h-full max-h-screen">
       <ChatHistoryPanel
@@ -357,6 +366,7 @@ export default function ChatContainer() {
                       isFirstInGroup={isFirstInGroup}
                       isLastInGroup={isLastInGroup}
                       componentData={message.componentData}
+                      onViewSource={openPdfViewer}
                     />
                   );
                 })}
@@ -392,6 +402,13 @@ export default function ChatContainer() {
           </Card>
         </div>
       </div>
+
+      {/* PDF Viewer Side Panel */}
+      <PDFViewerIframe
+        isOpen={isOpen}
+        onClose={closePdfViewer}
+        citation={selectedCitation}
+      />
     </div>
   );
 }

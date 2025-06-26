@@ -1,0 +1,1906 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// Input: One item from an HTTP Request node.\nconst inputItem = $input.first(); // Use $input.first() for clarity and best practice\nconst metadata = inputItem.json.body;\nconst binaryData = inputItem.binary.data;\n\n// --- Validation ---\nif (!binaryData) {\n  throw new Error(\"Missing binary property 'data'. This usually means the preceding HTTP Request node did not have 'Response Format' set to 'File'.\");\n}\nif (!metadata || !metadata.tenantId) {\n    throw new Error(\"Missing 'body' or 'tenantId' in the JSON data from the Webhook.\");\n}\n// -----------------\n\n// Create a sanitized, predictable index name from the tenantId.\nconst pineconeIndexName = `tenant-${metadata.tenantId}`.toLowerCase();\n\n// Build the final output item\nconst outputItem = {\n  json: {\n    filename: metadata.documentName,\n    mimetype: metadata.fileMimeType,\n    size: metadata.fileSize,\n    documentId: metadata.documentId,\n    tenantId: metadata.tenantId,\n    presignedUrl: metadata.presignedUrl,\n    pineconeIndexName: pineconeIndexName,\n    nameSpace: metadata.namespace\n  },\n  binary: {\n    // The key here becomes the property name for the binary data\n    'file': binaryData, \n  }\n};\n\nreturn [outputItem];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -540,
+        2700
+      ],
+      "id": "b0234c8e-3502-4a3e-9e73-da579cc79399",
+      "name": "SPLIT FILES",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "docUpload",
+        "authentication": "jwtAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        2700
+      ],
+      "id": "78668075-4fc0-4b8a-baec-83137d16ad31",
+      "name": "Webhook",
+      "webhookId": "96256315-2254-4a90-90ef-21025a66746b",
+      "credentials": {
+        "jwtAuth": {
+          "id": "RmCCcyDfAVkrTEqy",
+          "name": "JWT Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.presignedUrl }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -760,
+        2700
+      ],
+      "id": "af794eaa-872b-4161-ba8f-0afaab96442d",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.pinecone.io/indexes/tenant-{{ $('HTTP Request').item.json.body.tenantId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        2675
+      ],
+      "id": "c931b789-152a-44a7-9c75-13d29d9ddf8f",
+      "name": "Get Index1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "87999020-7a2f-4cb2-b2fe-6365f2898f81",
+              "leftValue": "={{ $json.status.ready }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -100,
+        2675
+      ],
+      "id": "3fb45f9e-198a-4c55-9cc1-f95b16f1a753",
+      "name": "Index Exists?1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pinecone.io/indexes",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"name\": \"tenant-{{$('SPLIT FILES').item.json.tenantId}}\",\n  \"dimension\": 1024,\n  \"metric\": \"dotproduct\",\n  \"spec\": {\n    \"serverless\": {\n      \"cloud\": \"aws\",\n      \"region\": \"us-east-1\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        120,
+        2675
+      ],
+      "id": "99c7dd63-8510-448c-8ef3-90911e87dd9f",
+      "name": "Create index1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 45
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        340,
+        2675
+      ],
+      "id": "aa740ac5-b4e5-4e38-81de-3ae1b7cc436e",
+      "name": "Wait for Index1",
+      "webhookId": "58c02cc2-a567-4ebb-bbde-f7b8d6ed9477"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.pinecone.io/indexes/tenant-{{ $('SPLIT FILES').item.json.tenantId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        2675
+      ],
+      "id": "4c4fcdda-1f2c-4fd9-8fc6-de301b3aefd7",
+      "name": "Get Created Index1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1000,
+        2700
+      ],
+      "id": "5dc9c754-1596-411d-a601-6322337619ed",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        780,
+        2825
+      ],
+      "id": "5d5b49d0-cc7b-4ae4-abea-ec21722eae5f",
+      "name": "Merge4"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        120,
+        2475
+      ],
+      "id": "0f202a62-9b7b-4f3d-9629-4f46b7e5b001",
+      "name": "Merge5"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1440,
+        2700
+      ],
+      "id": "e5121d0b-1ad1-4bfa-97a4-8a28c2da1ba2",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// User-defined settings for chunking\nconst chunkLength = 2000; // Number of characters per chunk\nconst overlap = 50;      // Overlap between chunks\n\n// This will hold all the final, enriched chunks\nconst allChunks = [];\n\n// Loop over every document that comes into this node\n// (Usually just one, but this makes the code robust)\nfor (const item of $input.all()) {\n  const inputData = item.json;\n\n  // --- Data Validation: Ensure all necessary data from the AI is present ---\n  if (!inputData.documentId) {\n    throw new Error(\"Input item is missing 'documentId'. Check the 'Metadata Vars' node.\");\n  }\n  if (!inputData.text) {\n    throw new Error(\"Input item is missing the 'text' property. Check the upstream 'Markdown to Text' node.\");\n  }\n  if (!inputData.catalog_info) {\n    throw new Error(\"Input item is missing the 'catalog_info' property. Check the AI parsing and 'Metadata Vars' nodes.\");\n  }\n  // This reference is outside the main loop, so .first() is correct.\n  // It gets the Pinecone host URL for this specific document.\n  const host = $(\"Single File1\").first().json.host;\n  if (!host) {\n      throw new Error(\"Could not find Pinecone host URL. Check the 'Single File1' node.\");\n  }\n  // -------------------------------------------------------------------------\n\n  const textToChunk = inputData.text;\n  let position = 0;\n\n  // Now, we chunk the main text content\n  while (position < textToChunk.length) {\n    const end = position + chunkLength;\n    const chunkText = textToChunk.slice(position, end);\n    \n    // For each chunk, create a rich JSON object that carries all the metadata.\n    allChunks.push({\n      json: {\n        // --- Core Chunk Data ---\n        text: chunkText,\n        \n        // --- Document & Pinecone Identifiers ---\n        documentId: inputData.documentId,\n        host: host,\n\n        // --- Rich Metadata for Pinecone ---\n        // This metadata will be attached to the vector in Pinecone.\n        metadata: {\n          // --- Document & Pinecone Identifiers ---\n          documentId: inputData.documentId,\n          // Document-level info from the AI\n          document_type: inputData.catalog_info.document_type,\n          technical_domain: inputData.catalog_info.technical_domain,\n          manufacturer: inputData.catalog_info.manufacturer,\n          document_summary: inputData.catalog_info.summary,\n          \n          // Use the keywords array generated by the AI\n          keywords: inputData.keywords || [],\n\n          // Chunk-specific info\n          chunk_character_start: position,\n          chunk_character_end: end\n        }\n      },\n    });\n    \n    // Move to the next chunk position\n    position += chunkLength - overlap;\n  }\n}\n\n// Return a single flat list of all chunk items. The next node in the workflow,\n// 'Loop Over Items4' (SplitInBatches), will process these one by one.\nreturn allChunks;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        2080
+      ],
+      "id": "ae7bd8e5-79c5-4891-a02e-de52015e5ad1",
+      "name": "CHUNKING TEXT1"
+    },
+    {
+      "parameters": {
+        "batchSize": 96,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1880,
+        2075
+      ],
+      "id": "3b3f6112-ddaa-488e-9612-4d4097917c3b",
+      "name": "Loop Over Items5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pinecone.io/embed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Pinecone-API-Version",
+              "value": "2025-04"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-text-embed-v2\",\n  \"parameters\": {\n    \"input_type\": \"passage\",\n    \"truncate\": \"END\"\n  },\n  \"inputs\": {{ JSON.stringify($json.inputs.map(t => ({ text: t }))) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2540,
+        2075
+      ],
+      "id": "e7d91f87-e1bc-4c76-9182-04ac671c7dd3",
+      "name": "DENSE EMBED1",
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pinecone.io/embed",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Pinecone-API-Version",
+              "value": "2025-04"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"pinecone-sparse-english-v0\",\n  \"parameters\": {\n    \"input_type\": \"passage\",\n    \"truncate\": \"END\"\n  },\n  \"inputs\": {{ JSON.stringify($('Prepare Batch1').item.json.inputs.map(t => ({ text: t }))) }}\n\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2980,
+        1975
+      ],
+      "id": "8b83bc8c-7334-4a22-9105-b898c710fd46",
+      "name": "SPARSE EMBED1",
+      "retryOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "function generateUUID() {\n  // A simple UUID generator\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\n// CORRECT: Use .item to get data from the current loop iteration\nconst denseEmbeddings = $('DENSE EMBED1').item.json.body.data;\nconst sparseEmbeddings = $('SPARSE EMBED1').item.json.body.data;\nconst richChunks = $('Prepare Batch1').item.json.rich_chunks;\n\n// This reference is outside the loop, so .first() is correct here.\n// It gets the namespace for the entire document.\n// NOTE: Make sure you have a node named \"SPLIT FILES1\" before the chunking.\nconst namespace = $('SPLIT FILES').first().json.nameSpace;\n\nconst vectors = [];\n\nfor (let i = 0; i < denseEmbeddings.length; i++) {\n  const dense = denseEmbeddings[i];\n  const sparse = sparseEmbeddings[i];\n  const richChunk = richChunks[i];\n\n  const vector = {\n    id: generateUUID(),\n    values: dense.values,\n    metadata: {\n      text: richChunk.text,\n      ...richChunk.metadata  // Spreads all metadata (doc type, manufacturer, etc.)\n    },\n  };\n\n  // Add sparse values only if they exist\n  if (sparse.sparse_indices && sparse.sparse_indices.length > 0) {\n    vector.sparseValues = {\n      indices: sparse.sparse_indices,\n      values: sparse.sparse_values,\n    };\n  }\n\n  vectors.push(vector);\n}\n\n// The final object to be sent to the Pinecone Upsert API\nreturn [{\n  json: {\n    vectors: vectors,\n    namespace: namespace,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3278,
+        1900
+      ],
+      "id": "01971411-b9dc-4f1f-9760-92b066cbb536",
+      "name": "VECTOR ARRAY BUILDING1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $('Prepare Batch1').item.json.rich_chunks[0].host }}/vectors/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Pinecone-API-Version",
+              "value": "2025-04"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 500
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3576,
+        2450
+      ],
+      "id": "6f494b73-d2ea-4fe1-9c32-a02c1544c12f",
+      "name": "UPSERT VECTORS1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "IhnnSVQgSKkN5Qzb",
+          "name": "PINECONE API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "DOCUMENT[S] PROCESSED SUCCESSFULLY",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        3576,
+        2100
+      ],
+      "id": "ce70d520-37d3-46ad-9f06-4c5dfbff5fc6",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"type\": \"document_url\",\n    \"document_url\": \"{{ $json.presignedUrl }}\"\n  },\n  \"include_image_base64\": false\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        2700
+      ],
+      "id": "c12e3579-88e2-482b-bed4-e88111a9adda",
+      "name": "Get OCR Results",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "lC2KOO19P1x3RoAL",
+          "name": "Mistral API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input: An array of items. One item has the Pinecone host,\n// and another has the original binary data. This code finds both\n// and merges them into a single, complete item.\n\nconst items = $input.all();\n\n// Find the item that contains the Pinecone host information.\nconst hostItem = items.find(item => item.json && item.json.host);\n\n// --- THIS IS THE LINE TO CHANGE ---\n// Find the item that contains the original binary file by looking for the new key.\nconst binaryItem = items.find(item => item.binary && item.binary.file);\n// --- END OF CHANGE ---\n\n// --- Validation ---\n// If we can't find either piece, something is wrong upstream.\nif (!hostItem) {\n  throw new Error(\"Could not find the item containing the Pinecone 'host'. Check the IF/ELSE branches.\");\n}\nif (!binaryItem) {\n  throw new Error(\"Could not find the item containing the binary file. This usually means the connection from 'SPLIT FILES1' to the merge node is broken or the binary key name is wrong.\");\n}\n// -----------------\n\n\n// Manually merge the JSON from both items.\n// We start with the binaryItem's JSON and add the hostItem's JSON to it.\n// This preserves all original metadata and adds the host.\nconst mergedJson = { ...binaryItem.json, ...hostItem.json };\n\n// Construct the final, complete item.\nconst finalItem = {\n  json: mergedJson,\n  binary: binaryItem.binary, // Use the binary data from the binaryItem\n};\n\n// Return only the single, complete item.\n// The loop will now receive exactly one item with all required data.\nreturn [finalItem];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        2700
+      ],
+      "id": "b28a266d-800a-45f5-b07c-3de6d6495c6d",
+      "name": "Single File1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the incoming item and its JSON data.\nconst inputItem = items[0];\nconst inputJson = inputItem.json;\n\n// Check if the 'pages' array exists to avoid errors.\nif (!inputJson.pages || !Array.isArray(inputJson.pages)) {\n  throw new Error(\"Input item does not contain a 'pages' array from the OCR result.\");\n}\n\n// 1. Map over the pages to get the markdown from each.\n// 2. Join them into a single string.\nconst fullText = inputJson.pages\n  .map(page => page.markdown)\n  .join('\\n\\n');\n\n// Create a new JSON object that includes all the original data\n// and adds our new 'text' field.\nconst outputJson = {\n  ...inputJson, // <-- This is the key change. It copies all existing data.\n  text: fullText\n};\n\n// Optional but recommended: Clean up the large 'pages' array from the OCR\n// result, as we no longer need it and it consumes memory.\ndelete outputJson.pages;\n\n// Return a single item with the preserved and new data.\n// Note: We are keeping the original binary data if it exists.\nreturn [{\n  json: outputJson,\n  binary: inputItem.binary\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        2700
+      ],
+      "id": "dc278014-a10e-4685-a278-80b8e810f035",
+      "name": "Markdown to Text1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bc206198-de29-4ab1-80d9-11912281de96",
+              "name": "text",
+              "value": "={{ $('Edit Fields1').first().json.fullText }}",
+              "type": "string"
+            },
+            {
+              "id": "bd063090-7cee-4221-9c8d-0d069c80be1b",
+              "name": "catalog_info",
+              "value": "={{ $json.catalog_info }}",
+              "type": "object"
+            },
+            {
+              "id": "cab7dd72-2c22-4dea-9e60-56177a16cd3b",
+              "name": "keywords",
+              "value": "={{ $json.keywords }}",
+              "type": "array"
+            },
+            {
+              "id": "697a7566-e964-487a-b210-ffecd8a3c5dd",
+              "name": "parts_catalog",
+              "value": "={{ $json.parts_catalog }}",
+              "type": "array"
+            },
+            {
+              "id": "a46b8515-2bfa-4821-b43a-bbae39b601f7",
+              "name": "product_categories",
+              "value": "={{ $json.product_categories }}",
+              "type": "array"
+            },
+            {
+              "id": "291e0b07-732e-4385-934d-bead6b54413b",
+              "name": "cross_references",
+              "value": "={{ $json.cross_references }}",
+              "type": "object"
+            },
+            {
+              "id": "2b258f50-3421-426b-87cf-bab5f42aa310",
+              "name": "statistics",
+              "value": "={{ $json.statistics }}",
+              "type": "object"
+            },
+            {
+              "id": "35219d5c-2707-4d41-8006-12cd11de034f",
+              "name": "processing_info",
+              "value": "={{ $json.processing_info }}",
+              "type": "object"
+            },
+            {
+              "id": "7a57505f-d8a0-49c7-a84b-23b2969a8720",
+              "name": "documentId",
+              "value": "={{ $('Loop Over Items1').first().json.documentId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4840,
+        2820
+      ],
+      "id": "ee5f98cc-7c2c-464b-a161-a6ebda00a779",
+      "name": "Metadata Vars1"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "document_texts",
+          "mode": "list",
+          "cachedResultName": "document_texts"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "documentId"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullText",
+              "displayName": "fullText",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "documentId",
+              "displayName": "documentId",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2540,
+        2700
+      ],
+      "id": "76319453-b92d-43bf-95ee-15cf874166ec",
+      "name": "Postgres4",
+      "credentials": {
+        "postgres": {
+          "id": "hkhBZtrcHx5e0aLS",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7c3ca54e-3c40-40bd-82ee-ad80c4ce7ce3",
+              "name": "fullText",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "e894b053-4c9f-4ec2-a31a-277637c9aa81",
+              "name": "documentId",
+              "value": "={{ $('Single File1').item.json.documentId }}",
+              "type": "string"
+            },
+            {
+              "id": "f7f673a2-7ba5-41b7-a355-2c27433f69aa",
+              "name": "createdAt",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "3a7f5837-daa6-4384-a04c-653064e943ae",
+              "name": "updatedAt",
+              "value": "={{ $now}}",
+              "type": "string"
+            },
+            {
+              "id": "aa3e2288-f703-4e8f-9dee-10fd7b6be73f",
+              "name": "id",
+              "value": "={{ $json.db_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2320,
+        2700
+      ],
+      "id": "4590b02f-75af-46c7-8882-efbfbf44b8a1",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the incoming data item that we want to modify\nconst item = $input.first();\n\n// Your excellent UUID generation logic\nfunction generateUUID() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\n// 1. Generate the new ID using your function\nconst newId = generateUUID();\n\n// 2. Add the new ID to the JSON data of the item.\n//    We use a new key like 'db_id' to make it clear.\nitem.json.db_id = newId;\n\n// 3. Return the entire modified item for the next node to use\nreturn item;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        2700
+      ],
+      "id": "c8fb30c7-dd6b-4b30-9558-3f5b900a9a90",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This code correctly expects an item from the SplitInBatches node,\n// which has the batch array inside the `.data` property.\nconst batch = $input.all();\n\n// This check prevents the 'map' error if an empty batch is somehow processed.\nif (!Array.isArray(batch)) {\n  // If the input isn't a valid batch, stop this path of the workflow.\n  return null;\n}\n\nconst inputsForApi = batch.map(item => item.json.text);\nconst richChunks = batch.map(item => item.json);\n\nreturn [{\n  json: {\n    inputs: inputsForApi,\n    rich_chunks: richChunks\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        2075
+      ],
+      "id": "de41b0e5-f032-44dd-9eec-10ca97d0c917",
+      "name": "Prepare Batch1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "PROCESSED",
+            "updatedAt": "={{ $now }}",
+            "id": "={{ $('Prepare Batch1').item.json.rich_chunks[0].documentId }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "PROCESSED",
+                  "value": "PROCESSED"
+                },
+                {
+                  "name": "PROCESSING",
+                  "value": "PROCESSING"
+                }
+              ]
+            },
+            {
+              "id": "metadata",
+              "displayName": "metadata",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tenantId",
+              "displayName": "tenantId",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "userId",
+              "displayName": "userId",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3278,
+        1700
+      ],
+      "id": "09b9d447-d5ce-427c-a5aa-8ee016519426",
+      "name": "Postgres5",
+      "credentials": {
+        "postgres": {
+          "id": "hkhBZtrcHx5e0aLS",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 60
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2320,
+        2075
+      ],
+      "id": "182752c2-4057-4f63-9151-e805e04fcf40",
+      "name": "Wait4",
+      "webhookId": "dede93f3-94a0-4bda-b671-b5444355374d"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "updatedAt": "={{ $now }}",
+            "status": "FAILED",
+            "id": "={{ $('Prepare Batch1').item.json.rich_chunks[0].documentId }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "PROCESSED",
+                  "value": "PROCESSED"
+                },
+                {
+                  "name": "PROCESSING",
+                  "value": "PROCESSING"
+                }
+              ]
+            },
+            {
+              "id": "metadata",
+              "displayName": "metadata",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tenantId",
+              "displayName": "tenantId",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "userId",
+              "displayName": "userId",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3278,
+        2300
+      ],
+      "id": "fe62a645-432e-4c15-8459-ce42dfcc5553",
+      "name": "Postgres6",
+      "credentials": {
+        "postgres": {
+          "id": "hkhBZtrcHx5e0aLS",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "updatedAt": "={{ $now }}",
+            "status": "FAILED",
+            "id": "={{ $('Prepare Batch1').item.json.rich_chunks[0].documentId }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": true,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "url",
+              "displayName": "url",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "FAILED",
+                  "value": "FAILED"
+                },
+                {
+                  "name": "PROCESSED",
+                  "value": "PROCESSED"
+                },
+                {
+                  "name": "PROCESSING",
+                  "value": "PROCESSING"
+                }
+              ]
+            },
+            {
+              "id": "metadata",
+              "displayName": "metadata",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "object",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "createdAt",
+              "displayName": "createdAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updatedAt",
+              "displayName": "updatedAt",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tenantId",
+              "displayName": "tenantId",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "userId",
+              "displayName": "userId",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3278,
+        2100
+      ],
+      "id": "418abdd7-9416-40e3-b43e-b426f5bafa04",
+      "name": "Postgres7",
+      "credentials": {
+        "postgres": {
+          "id": "hkhBZtrcHx5e0aLS",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 60
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2760,
+        1975
+      ],
+      "id": "ecb5d19c-d8f0-4de7-b745-1c9f24d502cf",
+      "name": "Wait5",
+      "webhookId": "59bff8aa-94bc-422c-bfcb-8e1cc8f494d1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b5f7a64c-424e-49fc-9c6f-b6862fee6f8b",
+              "name": "textFull",
+              "type": "string",
+              "value": "={{ $('Edit Fields1').item.json.fullText }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2dec7706-a085-4458-b138-1144335a9c07",
+      "name": "1. Set Input Text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2760,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an AI assistant specialized in generating comprehensive metadata for technical documents, manuals, specifications, and product information. Your primary function is to analyze text input and extract structured metadata that will be used for uploading and filtering data in Pinecone vector databases. The metadata you generate must be optimized for vector search, semantic retrieval, and efficient filtering operations.\n\n**Input Format**\nYou will receive a block of text containing technical content that may include:\n\n*   Product specifications and descriptions\n*   Technical manuals or documentation\n*   Parts lists and catalogs\n*   Manufacturing documentation\n*   Service manuals or repair guides\n\n**Core Responsibilities**\nWhen provided with this text input, you must generate the following metadata components:\n\n1.  **Summary**\n    *   Create a concise 2-3 sentence summary that captures the main purpose and scope of the content.\n    *   Focus on what the document covers, its intended audience, and primary use case.\n    *   Keep summaries between 50-150 words.\n\n2.  **Keywords**\n    *   Extract 8-15 relevant keywords and phrases that represent key concepts, technologies, and topics.\n    *   Include both technical terms and general descriptive words.\n    *   Prioritize terms that would be used in vector similarity searches and filtering.\n    *   Format as a comma-separated list.\n\n3.  **Part Numbers**\n    *   Identify and extract all part numbers, model numbers, product codes, and reference numbers mentioned in the content.\n    *   Include manufacturer part numbers, internal reference codes, and specification numbers.\n    *   Format as a structured list.\n    *   If no part numbers are found, ensure the `has_part_numbers` flag is false.\n\n**Tool Usage Guidelines**\nYou have access to various tools to enhance metadata generation:\n\n*   **Tavily Web Search Tool**: Use when you need to verify part numbers, find additional specifications, or look up technical terms.\n*   **File Reading Tools**: Use to process uploaded documents or extract text.\n*   **Data Processing Tools**: Use for analyzing large datasets.\n\n**Output Format**\nStructure your response as a single, valid JSON object. Do not include any text before or after the JSON.\n\njson{\n  \"summary\": \"Your 2-3 sentence summary here\",\n  \"keywords\": [\"keyword1\", \"keyword2\", \"keyword3\"],\n  \"part_numbers\": [\"part_number_1\", \"part_number_2\", \"part_number_3\"],\n  \"document_type\": \"manual|specification|catalog|guide\",\n  \"technical_domain\": \"electronics|mechanical|automotive|aerospace|etc\",\n  \"manufacturer\": \"manufacturer_name_if_identified\",\n  \"has_part_numbers\": true/false\n}\n\n**Quality Standards**\n\n*   Ensure all metadata fields are properly formatted for Pinecone ingestion.\n*   Keep string values concise to optimize vector database storage.\n*   Provide boolean flags for efficient filtering (`has_part_numbers`).\n*   Validate that all field types match the expected schema.\n\n**Your goal is to create metadata that serves as an efficient filtering and retrieval mechanism for Pinecone vector databases.**",
+          "batching": {
+            "delayBetweenBatches": 1000
+          }
+        }
+      },
+      "id": "15df3a17-7548-4464-9e28-8c58e20f9e3d",
+      "name": "3. Extract Metadata from Chunk",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// This script splits a large text into smaller chunks, respecting paragraph boundaries.\n// It's designed to create chunks of a target size without cutting words or part numbers.\n\nconst text = $input.item.json.textFull;\nif (!text) {\n  return [];\n}\n\n// Target maximum tokens and desired overlap in lines/paragraphs.\nconst MAX_TOKENS = 10000;\nconst OVERLAP_LINES = 5;\n\n// Heuristic: 1 token is approximately 4 characters.\nconst MAX_CHARS = MAX_TOKENS * 4;\n\n// Split the text into paragraphs. This respects natural text boundaries.\nconst paragraphs = text.split(/\\n\\s*\\n/).filter(p => p.trim().length > 0);\n\nconst chunks = [];\nlet currentChunkLines = [];\nlet currentChunkCharCount = 0;\n\nfor (let i = 0; i < paragraphs.length; i++) {\n  const paragraph = paragraphs[i];\n  const paragraphCharCount = paragraph.length;\n\n  // If adding the next paragraph would exceed the max size, finalize the current chunk.\n  if (currentChunkCharCount > 0 && (currentChunkCharCount + paragraphCharCount > MAX_CHARS)) {\n    chunks.push({ json: { chatInput: currentChunkLines.join('\\n\\n') } });\n\n    // To create overlap, start the next chunk with the last few lines of the current one.\n    const overlapStartIndex = Math.max(0, currentChunkLines.length - OVERLAP_LINES);\n    const overlappingLines = currentChunkLines.slice(overlapStartIndex);\n    \n    currentChunkLines = [...overlappingLines];\n    currentChunkCharCount = overlappingLines.join('\\n\\n').length;\n  }\n\n  // Add the current paragraph to the chunk being built.\n  currentChunkLines.push(paragraph);\n  currentChunkCharCount += paragraphCharCount + 2; // +2 for the '\\n\\n' joiner\n}\n\n// Add the last remaining chunk if there is one.\nif (currentChunkLines.length > 0) {\n  chunks.push({ json: { chatInput: currentChunkLines.join('\\n\\n') } });\n}\n\n// Return each chunk as a separate item. The subsequent nodes will run for each chunk.\nreturn chunks;"
+      },
+      "id": "54940eb9-6d45-4cb2-9d3b-859c7f2c4c04",
+      "name": "2. Split Text into Chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2980,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\n\n// Aggregated fields\nconst allKeywords = new Set();\nconst allPartNumbers = new Set();\nconst allProductCategories = new Set();\nconst allSummaries = [];\nconst crossReferenceMap = {};\nlet wordCountTotal = 0;\nlet partCountTotal = 0;\nlet keywordCountTotal = 0;\nlet fieldCoverageSum = 0;\nlet confidenceSum = 0;\nlet generationTimes = [];\n\nconst docTypeVotes = {};\nconst domainVotes = {};\nconst manufacturerVotes = {};\n\n// Utilities\nconst vote = (votes, key) => {\n  if (key && typeof key === 'string' && key.toLowerCase() !== 'unknown' && key.toLowerCase() !== 'not_identified') {\n    votes[key] = (votes[key] || 0) + 1;\n  }\n};\nconst getTopVote = (votes) => {\n  if (Object.keys(votes).length === 0) return null;\n  return Object.keys(votes).reduce((a, b) => votes[a] > votes[b] ? a : b);\n};\n\n// Aggregation loop\nfor (const item of allItems) {\n  const data = item.json;\n\n  // Catalog Info\n  const catalogInfo = data.catalog_info || {};\n  if (catalogInfo.summary && !catalogInfo.summary.toLowerCase().includes(\"error\")) {\n    allSummaries.push(catalogInfo.summary);\n  }\n  vote(docTypeVotes, catalogInfo.document_type);\n  vote(domainVotes, catalogInfo.technical_domain);\n  vote(manufacturerVotes, catalogInfo.manufacturer);\n\n  // Keywords\n  if (Array.isArray(data.keywords)) {\n    data.keywords.forEach(kw => allKeywords.add(kw.trim().toLowerCase()));\n    keywordCountTotal += data.keywords.length;\n  }\n\n  // Part Numbers\n  if (Array.isArray(data.parts_catalog)) {\n    data.parts_catalog.forEach(pn => allPartNumbers.add(pn.trim()));\n    partCountTotal += data.parts_catalog.length;\n  }\n\n  // Product Categories\n  if (Array.isArray(data.product_categories)) {\n    data.product_categories.forEach(cat => allProductCategories.add(cat.trim().toLowerCase()));\n  }\n\n  // Cross References\n  const xrefs = data.cross_references || {};\n  for (const [key, value] of Object.entries(xrefs)) {\n    if (key && value) crossReferenceMap[key] = value;\n  }\n\n  // Statistics\n  const stats = data.statistics || {};\n  if (typeof stats.word_count === 'number') wordCountTotal += stats.word_count;\n\n  // Processing Info\n  const proc = data.processing_info || {};\n  if (typeof proc.field_coverage === 'number') fieldCoverageSum += proc.field_coverage;\n  if (typeof proc.confidence_score === 'number') confidenceSum += proc.confidence_score;\n  if (proc.generation_time) generationTimes.push(proc.generation_time);\n}\n\n// Final aggregation\nconst aggregatedData = {\n  catalog_info: {\n    chatInput: `Based on the following summaries from different parts of a document, create a single, cohesive 2–3 sentence summary:\\n\\n- ${allSummaries.join('\\n- ')}`,\n    document_type: getTopVote(docTypeVotes) || \"unknown\",\n    technical_domain: getTopVote(domainVotes) || \"unknown\",\n    manufacturer: getTopVote(manufacturerVotes) || \"not_identified\"\n  },\n  keywords: [...allKeywords],\n  parts_catalog: [...allPartNumbers],\n  product_categories: [...allProductCategories],\n  cross_references: crossReferenceMap,\n  statistics: {\n    word_count: wordCountTotal,\n    part_number_count: allPartNumbers.size,\n    keyword_count: allKeywords.size\n  },\n  processing_info: {\n    confidence_score: Number((confidenceSum / allItems.length).toFixed(2)),\n    generation_time: generationTimes.join(\", \"),\n    field_coverage: Math.round(fieldCoverageSum / allItems.length)\n  }\n};\n\nreturn [{ json: aggregatedData }];\n"
+      },
+      "id": "d191635a-0c6c-4dd6-9f1e-6b3a143140ab",
+      "name": "5. Aggregate Chunk Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3796,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfor (const item of items) {\n  try {\n    const aiResponse = item.json.output;\n\n    // Match either markdown-wrapped or raw JSON\n    const jsonMatch = aiResponse.match(/```json\\s*([\\s\\S]*?)```|({[\\s\\S]*})/);\n    const jsonString = jsonMatch?.[1] || jsonMatch?.[2] || aiResponse;\n\n    // Parse the string\n    const parsed = JSON.parse(jsonString);\n\n    // Helper: Clean arrays (remove null/undefined/empty strings)\n    const cleanArray = (arr) =>\n      Array.isArray(arr) ? arr.filter(v => v != null && v !== '') : [];\n\n    // Helper: Clean objects (remove null/undefined values)\n    const cleanObject = (obj) =>\n      obj && typeof obj === 'object'\n        ? Object.fromEntries(Object.entries(obj).filter(([_, v]) => v != null))\n        : {};\n\n    // Extract and sanitize fields\n    item.json.catalog_info = cleanObject({\n      summary: parsed.summary || '',\n      document_type: parsed.document_type || 'unknown',\n      technical_domain: parsed.technical_domain || 'unknown',\n      manufacturer: parsed.manufacturer || 'not_identified'\n    });\n\n    item.json.keywords = cleanArray(parsed.keywords);\n    item.json.parts_catalog = cleanArray(parsed.part_numbers);\n    item.json.product_categories = cleanArray(parsed.product_categories);\n    item.json.cross_references = cleanObject(parsed.cross_references);\n    item.json.statistics = cleanObject(parsed.statistics);\n    item.json.processing_info = cleanObject(parsed.processing_info);\n\n  } catch (error) {\n    // Fallback with empty but compatible structure\n    item.json.catalog_info = {\n      summary: \"Error: Could not parse AI output for this chunk.\",\n      document_type: \"unknown\",\n      technical_domain: \"unknown\",\n      manufacturer: \"unknown\"\n    };\n    item.json.keywords = [];\n    item.json.parts_catalog = [];\n    item.json.product_categories = [];\n    item.json.cross_references = {};\n    item.json.statistics = {};\n    item.json.processing_info = {};\n  }\n}\n\nreturn items;\n"
+      },
+      "id": "13323322-a6e0-4344-9eb1-b25c7307b190",
+      "name": "4. Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3576,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.catalog_info.chatInput }}",
+        "options": {
+          "systemMessage": "You are an expert at synthesizing information. Combine the provided individual summaries from different parts of a document into a single, cohesive, and concise 2-3 sentence summary of the entire document. Do not add any extra text, just provide the final summary."
+        }
+      },
+      "id": "934bc8fa-8f57-4f1a-b1fa-891509ce0dd3",
+      "name": "6. Generate Final Summary",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        4020,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the aggregated data (from \"5. Aggregate Chunk Results\")\nconst aggregatedData = $('5. Aggregate Chunk Results').item.json;\n\n// Get the final summary from the summarization AI agent (from \"6. Generate Final Summary\")\nconst summaryData = $('6. Generate Final Summary').item.json;\n\n// Build the final JSON object in the updated format\nconst finalJson = {\n  catalog_info: {\n    summary: summaryData.output, // Overwrite summary with final version\n    document_type: aggregatedData.catalog_info?.document_type || \"unknown\",\n    technical_domain: aggregatedData.catalog_info?.technical_domain || \"unknown\",\n    manufacturer: aggregatedData.catalog_info?.manufacturer || \"not_identified\"\n  },\n  keywords: aggregatedData.keywords || [],\n  parts_catalog: aggregatedData.parts_catalog || [],\n  product_categories: aggregatedData.product_categories || [],\n  cross_references: aggregatedData.cross_references || {},\n  statistics: aggregatedData.statistics || {},\n  processing_info: aggregatedData.processing_info || {}\n};\n\n// Return a single item with the final structured metadata\nreturn [{ json: finalJson }];\n"
+      },
+      "id": "4a9ecb48-bf9e-444a-b1d6-57b5e789a480",
+      "name": "7. Construct Final JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4392,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "eeb2f71a-e926-42e8-a715-31adb1313b2b",
+      "name": "OpenAI Chat Model2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        3200,
+        2900
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "rp0scflg35pHQjNZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "2bd0a3dc-a62d-4ba5-a38e-65c0112f59c8",
+      "name": "OpenAI Chat Model3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        4020,
+        2920
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "rp0scflg35pHQjNZ",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# GETTING THE DOC\nTHIS IS THE DOWNLOADING OF THE DOCUMENT FORM S3 AND INDEX CREATION/ VALIDATION\n",
+        "height": 560,
+        "width": 2340
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -980,
+        2460
+      ],
+      "id": "d18f86da-26ec-4f46-b3ed-87f5e4ddba9c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# THIS IS THE DOC PROCESSING \nTHIS IS WHERE THE TEXT IS EXTRACTED FROM THE DOC AND THIS IS WHERE THE AI GENERATES THE METADATA FOR THE NEXT STEP\n",
+        "height": 560,
+        "width": 3660,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1400,
+        2560
+      ],
+      "id": "536ba14a-7ae1-4621-8367-31de58246f32",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "# THIS IS THE UPSERTING TO PINECONE\nTHIS IS WHERE THE EMBEDDING AND SPARCING VALUES ARE GENERATED AND ERROR HANDLING IS MADE AS WELL AS THE UPSERTING.",
+        "height": 920,
+        "width": 2200,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1620,
+        1640
+      ],
+      "id": "24db3aa2-8ef3-4359-a669-27d5422aa5b8",
+      "name": "Sticky Note2"
+    }
+  ],
+  "connections": {
+    "SPLIT FILES": {
+      "main": [
+        [
+          {
+            "node": "Get Index1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "SPLIT FILES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Index1": {
+      "main": [
+        [
+          {
+            "node": "Index Exists?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Index Exists?1": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create index1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create index1": {
+      "main": [
+        [
+          {
+            "node": "Wait for Index1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Index1": {
+      "main": [
+        [
+          {
+            "node": "Get Created Index1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Created Index1": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Single File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge4": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge5": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [
+          {
+            "node": "CHUNKING TEXT1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get OCR Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CHUNKING TEXT1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items5": {
+      "main": [
+        [
+          {
+            "node": "Postgres5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Batch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DENSE EMBED1": {
+      "main": [
+        [
+          {
+            "node": "Wait5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Postgres6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SPARSE EMBED1": {
+      "main": [
+        [
+          {
+            "node": "VECTOR ARRAY BUILDING1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Postgres7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VECTOR ARRAY BUILDING1": {
+      "main": [
+        [
+          {
+            "node": "UPSERT VECTORS1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UPSERT VECTORS1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get OCR Results": {
+      "main": [
+        [
+          {
+            "node": "Markdown to Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Single File1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown to Text1": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Metadata Vars1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres4": {
+      "main": [
+        [
+          {
+            "node": "1. Set Input Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Postgres4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Batch1": {
+      "main": [
+        [
+          {
+            "node": "Wait4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres5": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait4": {
+      "main": [
+        [
+          {
+            "node": "DENSE EMBED1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres6": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres7": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait5": {
+      "main": [
+        [
+          {
+            "node": "SPARSE EMBED1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Set Input Text": {
+      "main": [
+        [
+          {
+            "node": "2. Split Text into Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Extract Metadata from Chunk": {
+      "main": [
+        [
+          {
+            "node": "4. Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Split Text into Chunks": {
+      "main": [
+        [
+          {
+            "node": "3. Extract Metadata from Chunk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Aggregate Chunk Results": {
+      "main": [
+        [
+          {
+            "node": "6. Generate Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "5. Aggregate Chunk Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Generate Final Summary": {
+      "main": [
+        [
+          {
+            "node": "7. Construct Final JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Construct Final JSON": {
+      "main": [
+        [
+          {
+            "node": "Metadata Vars1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "3. Extract Metadata from Chunk",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "6. Generate Final Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "16bb6e4703e9bb77f0308d1733bd5fa0cbacadc025be0d68d1955e998d6a9b08"
+  }
+}

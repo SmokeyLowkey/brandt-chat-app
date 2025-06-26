@@ -19,7 +19,7 @@ interface ChatHistoryPanelProps {
   selectedConversationId: string | null;
   onSelectConversation: (conversationId: string) => void;
   onNewConversation: () => void;
-  onDeleteConversation: (conversationId: string) => void;
+  onDeleteConversation: (conversationId: string) => Promise<boolean>;
 }
 
 export default function ChatHistoryPanel({
@@ -183,10 +183,20 @@ export default function ChatHistoryPanel({
                     ? "hover:bg-white hover:bg-opacity-20 text-white"
                     : "hover:bg-gray-200 text-gray-500"
                 )}
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  onDeleteConversation(conversation.id);
-                  // Note: We don't need to update the UI here as it will be handled by the notification system
+                  const success = await onDeleteConversation(conversation.id);
+                  
+                  // If deletion was successful, immediately update the UI
+                  if (success) {
+                    // Remove the conversation from the local state immediately
+                    setConversations(prevConversations =>
+                      prevConversations.filter(conv => conv.id !== conversation.id)
+                    );
+                    
+                    // Also refresh the conversation list to ensure it's up-to-date
+                    fetchConversations();
+                  }
                 }}
               >
                 <Trash2 className="h-3 w-3" />

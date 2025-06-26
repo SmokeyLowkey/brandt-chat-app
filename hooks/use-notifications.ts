@@ -72,7 +72,7 @@ export function useNotifications() {
     pollNotifications();
     
     // Start polling interval
-    pollingIntervalRef.current = setInterval(pollNotifications, 30000); // Poll every 30 seconds
+    pollingIntervalRef.current = setInterval(pollNotifications, 5000); // Poll every 5 seconds
     setIsPolling(true);
     
     // Cleanup

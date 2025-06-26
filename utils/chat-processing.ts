@@ -13,6 +13,12 @@ export interface ComponentData {
 export interface ProductSpec {
   key: string;
   value: string;
+  citations?: {
+    documentId: string;
+    pageNumber: number;
+    bbox: string;
+    sourceText: string;
+  }[];
 }
 
 export interface ChatMessage {
@@ -572,6 +578,19 @@ export async function sendChatMessage(
             const specs = parsedData.props.specs || [];
             const note = parsedData.props.note || "";
             
+            // Extract all citations from specs
+            let allCitations: any[] = [];
+            specs.forEach((spec: ProductSpec) => {
+              if (spec.citations && Array.isArray(spec.citations)) {
+                allCitations = [...allCitations, ...spec.citations];
+              }
+            });
+            
+            // If there are citations, add them to the component data
+            if (allCitations.length > 0) {
+              parsedData.props.citations = allCitations;
+            }
+            
             // Format specs into readable text
             const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");
             
@@ -640,6 +659,19 @@ export async function sendChatMessage(
                     const specs = parsedOutput.props.specs || [];
                     const note = parsedOutput.props.note || "";
                     
+                    // Extract all citations from specs
+                    let allCitations: any[] = [];
+                    specs.forEach((spec: ProductSpec) => {
+                      if (spec.citations && Array.isArray(spec.citations)) {
+                        allCitations = [...allCitations, ...spec.citations];
+                      }
+                    });
+                    
+                    // If there are citations, add them to the component data
+                    if (allCitations.length > 0) {
+                      parsedOutput.props.citations = allCitations;
+                    }
+                    
                     // Format specs into readable text
                     const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");
                     
@@ -703,6 +735,19 @@ export async function sendChatMessage(
                     const intro = parsedOutput.props.introduction || "";
                     const specs = parsedOutput.props.specs || [];
                     const note = parsedOutput.props.note || "";
+                    
+                    // Extract all citations from specs
+                    let allCitations: any[] = [];
+                    specs.forEach((spec: ProductSpec) => {
+                      if (spec.citations && Array.isArray(spec.citations)) {
+                        allCitations = [...allCitations, ...spec.citations];
+                      }
+                    });
+                    
+                    // If there are citations, add them to the component data
+                    if (allCitations.length > 0) {
+                      parsedOutput.props.citations = allCitations;
+                    }
                     
                     // Format specs into readable text
                     const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");
@@ -807,6 +852,19 @@ export async function sendChatMessage(
                       const intro = parsedOutput.props.introduction || "";
                       const specs = parsedOutput.props.specs || [];
                       const note = parsedOutput.props.note || "";
+                      
+                      // Extract all citations from specs
+                      let allCitations: any[] = [];
+                      specs.forEach((spec: ProductSpec) => {
+                        if (spec.citations && Array.isArray(spec.citations)) {
+                          allCitations = [...allCitations, ...spec.citations];
+                        }
+                      });
+                      
+                      // If there are citations, add them to the component data
+                      if (allCitations.length > 0) {
+                        parsedOutput.props.citations = allCitations;
+                      }
                       
                       // Format specs into readable text
                       const specsText = specs.map((spec: ProductSpec) => `${spec.key}: ${spec.value}`).join("\n");

@@ -151,6 +151,7 @@ export async function sendDocumentToProcessing(document: {
   mimeType?: string;
   namespace?: string;
   description?: string;
+  text_blocks_redacted?: string;  // JSON string of text elements with bounding boxes
 }) {
   try {
     // Get current document metadata
@@ -284,6 +285,7 @@ export async function sendDocumentToProcessing(document: {
         fileMimeType: document.mimeType || document.type,
         namespace: namespace, // Include namespace in the top level
         description: description, // Include description in the top level
+        text_blocks_redacted: document.text_blocks_redacted, // Include text elements in the top level (already a string)
         // Add comprehensive metadata for processing
         metadata: {
           document: {
@@ -295,7 +297,8 @@ export async function sendDocumentToProcessing(document: {
             size: document.size,
             mimeType: document.mimeType || document.type,
             namespace: namespace, // Also include in metadata
-            description: description // Also include in metadata
+            description: description, // Also include in metadata
+            text_blocks_redacted: document.text_blocks_redacted // Also include in metadata
           },
           tenant: {
             id: document.tenantId,

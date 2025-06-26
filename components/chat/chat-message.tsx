@@ -4,6 +4,8 @@ import { Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { ComponentData } from "@/utils/chat-processing";
+import { CitedAnswer } from "@/components/chat/cited-answer";
+import { CitationButton } from "@/components/chat/citation-button";
 
 interface ChatMessageProps {
   content: string;
@@ -12,6 +14,7 @@ interface ChatMessageProps {
   isFirstInGroup: boolean;
   isLastInGroup: boolean;
   componentData?: ComponentData;
+  onViewSource?: (citation: any) => void;
 }
 
 export function formatTime(date: Date) {
@@ -24,10 +27,20 @@ function SimpleText({ text }: { text: string }) {
 }
 
 // Product specs component for rendering structured product information
-function ProductSpecs({ introduction, specs, note }: {
+function ProductSpecs({ introduction, specs, note, onViewSource }: {
   introduction: string;
-  specs: Array<{ key: string; value: string }>;
+  specs: Array<{
+    key: string;
+    value: string;
+    citations?: Array<{
+      documentId: string;
+      pageNumber: number;
+      bbox: string;
+      sourceText: string;
+    }>;
+  }>;
   note?: string;
+  onViewSource?: (citation: any) => void;
 }) {
   return (
     <div className="mb-2">
@@ -37,7 +50,20 @@ function ProductSpecs({ introduction, specs, note }: {
         {specs.map((spec, index) => (
           <div key={index} className={`flex ${index !== specs.length - 1 ? 'border-b border-gray-200 pb-2 mb-2' : ''}`}>
             <div className="w-1/3 font-medium text-gray-700">{spec.key}</div>
-            <div className="w-2/3 text-gray-900">{spec.value}</div>
+            <div className="w-2/3 text-gray-900">
+              {spec.value}
+              {spec.citations && spec.citations.length > 0 && onViewSource && (
+                <span className="inline-flex items-center">
+                  {spec.citations.map((citation, citIndex) => (
+                    <CitationButton
+                      key={`${citation.documentId}-${citIndex}`}
+                      citation={citation}
+                      onViewSource={onViewSource}
+                    />
+                  ))}
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -48,7 +74,7 @@ function ProductSpecs({ introduction, specs, note }: {
 }
 
 // Function to render the appropriate component based on componentData
-function renderComponent(componentData: ComponentData) {
+function renderComponent(componentData: ComponentData, onViewSource?: (citation: any) => void) {
   switch (componentData.component) {
     case 'SimpleText':
       return <SimpleText text={componentData.props.text} />;
@@ -58,6 +84,15 @@ function renderComponent(componentData: ComponentData) {
           introduction={componentData.props.introduction || ''}
           specs={componentData.props.specs || []}
           note={componentData.props.note}
+          onViewSource={onViewSource}
+        />
+      );
+    case 'CitedAnswer':
+      return (
+        <CitedAnswer
+          answer={componentData.props.answer || ''}
+          citations={componentData.props.citations || []}
+          onViewSource={onViewSource}
         />
       );
     default:
@@ -72,6 +107,7 @@ export default function ChatMessage({
   isFirstInGroup,
   isLastInGroup,
   componentData,
+  onViewSource,
 }: ChatMessageProps) {
   const isUser = role === "user";
 
@@ -122,7 +158,7 @@ export default function ChatMessage({
               "text-sm leading-relaxed"
             )}>
               {componentData ? (
-                renderComponent(componentData)
+                renderComponent(componentData, onViewSource)
               ) : (
                 /* Process the content as a whole to better handle multi-line lists */
                 (() => {
