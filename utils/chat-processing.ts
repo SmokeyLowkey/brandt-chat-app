@@ -235,10 +235,34 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 /**
  * Detects if a response is from Anthropic and extracts the component data
  * Anthropic responses typically have text followed by JSON
+ * This function handles both formats:
+ * 1. JSON embedded directly in the text (development format)
+ * 2. JSON in a code block with ```json (production format)
  * @returns An object with the extracted component data and the cleaned text
  */
 function processAnthropicResponse(text: string): { componentData: ComponentData | null, cleanedText: string } {
-  // Check if this looks like an Anthropic response (text followed by JSON)
+  // First check if the text contains a code block with JSON
+  const codeBlockMatch = text.match(/```json\n([\s\S]*?)\n```/);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    try {
+      const jsonData = JSON.parse(codeBlockMatch[1]);
+      if (jsonData && jsonData.component && jsonData.props) {
+        // Extract the text part (without the JSON code block)
+        const cleanedText = text.substring(0, text.indexOf('```json')).trim();
+        
+        console.log("Extracted component data from code block:", JSON.stringify(jsonData));
+        
+        return {
+          componentData: jsonData,
+          cleanedText
+        };
+      }
+    } catch (e) {
+      console.warn("Failed to parse JSON from code block:", e);
+    }
+  }
+  
+  // If no code block or parsing failed, try the original method (looking for JSON object)
   const jsonStartIndex = text.indexOf('{');
   if (jsonStartIndex <= 0) {
     // Not an Anthropic response or JSON is at the beginning
@@ -302,6 +326,35 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
   
   // Default return if anything fails
   return { componentData: null, cleanedText: text };
+}
+
+/**
+ * Extracts JSON from an array response with output containing a code block
+ * This handles the specific format from development environment:
+ * [{ "output": "Text...\n\n```json\n{...}\n```" }]
+ */
+function extractJsonFromArrayOutput(data: any): ComponentData | null {
+  // Check if data is an array with at least one item
+  if (Array.isArray(data) && data.length > 0 && data[0]?.output) {
+    const outputText = data[0].output;
+    
+    // Look for JSON code block
+    const codeBlockMatch = outputText.match(/```json\n([\s\S]*?)\n```/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      try {
+        // Parse the JSON content from the code block
+        const jsonData = JSON.parse(codeBlockMatch[1]);
+        if (jsonData && jsonData.component && jsonData.props) {
+          console.log("Extracted component data from array output code block:", JSON.stringify(jsonData));
+          return jsonData;
+        }
+      } catch (e) {
+        console.warn("Failed to parse JSON from array output code block:", e);
+      }
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -608,9 +661,21 @@ export async function sendChatMessage(
         responseContent = responseData || "";
       }
     } else if (Array.isArray(responseData) && responseData.length > 0) {
-      // Handle array response format from n8n webhook
-      const firstItem = responseData[0];
-      
+      // First try to extract JSON from array output format
+      // This handles the specific case where the response is an array with an output property
+      // containing a code block with JSON: [{ "output": "Text...\n\n```json\n{...}\n```" }]
+      const arrayJsonData = extractJsonFromArrayOutput(responseData);
+      if (arrayJsonData) {
+        componentData = arrayJsonData;
+        // Extract the text part before the JSON code block
+        const outputText = responseData[0].output;
+        const textBeforeJson = outputText.substring(0, outputText.indexOf('```json')).trim();
+        responseContent = textBeforeJson;
+        console.log("Successfully extracted component data from array output format");
+      } else {
+        // If extractJsonFromArrayOutput didn't find anything, proceed with existing logic
+        const firstItem = responseData[0];
+        
       // Check if this is a response object with nested structure
       if (firstItem.response && firstItem.response.body &&
           firstItem.response.body["RESPONSE FROM WEBHOOK SUCCEEDED"]) {
@@ -620,16 +685,15 @@ export async function sendChatMessage(
         // Try to parse the output as JSON if it's a string
         if (webhookOutput && typeof webhookOutput === 'string') {
           try {
-            // First check if this is an Anthropic response (text followed by JSON)
+            // Use the enhanced processAnthropicResponse function to handle both formats
             const anthropicResult = processAnthropicResponse(webhookOutput);
             if (anthropicResult.componentData) {
-              // It's an Anthropic response
-              // console.log("Detected Anthropic response format");
+              // Successfully extracted component data
               componentData = anthropicResult.componentData;
               responseContent = anthropicResult.cleanedText;
               
-              // Log the extracted component data from array response (Anthropic format)
-              console.log("Extracted component data from array response (Anthropic format):",
+              // Log the extracted component data
+              console.log("Extracted component data from response:",
                 JSON.stringify(anthropicResult.componentData));
             } else {
               // Not an Anthropic response, proceed with original logic
@@ -701,7 +765,7 @@ export async function sendChatMessage(
         // Try to parse the output as JSON if it's a string
         if (typeof firstItem.output === 'string') {
           try {
-            // First check if this is an Anthropic response (text followed by JSON)
+            // First check if this is an Anthropic response (text followed by JSON or with code blocks)
             const anthropicResult = processAnthropicResponse(firstItem.output);
             if (anthropicResult.componentData) {
               // It's an Anthropic response
@@ -789,6 +853,7 @@ export async function sendChatMessage(
         responseContent = firstItem.message;
       } else if (firstItem.content) {
         responseContent = firstItem.content;
+      }
       }
     } else if (responseData && typeof responseData === 'object') {
       // Handle object response with various formats
