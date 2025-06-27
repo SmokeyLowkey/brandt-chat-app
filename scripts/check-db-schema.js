@@ -1,8 +1,9 @@
 // Script to check if the text_blocks_redacted field exists in the document_texts table
 const { Client } = require('pg');
+require('dotenv').config();
 
 // Get the database connection string from the .env file
-const connectionString = "postgresql://REDACTED_DATABASE_URL";
+const connectionString = process.env.DATABASE_URL;
 
 async function checkDatabaseSchema() {
   const client = new Client({
