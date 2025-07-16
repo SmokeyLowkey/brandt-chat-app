@@ -51,6 +51,7 @@ export async function GET(
             users: true,
             documents: true,
             conversations: true,
+            managerAccess: true,
           },
         },
       },
@@ -60,7 +61,16 @@ export async function GET(
       return new NextResponse("Tenant not found", { status: 404 });
     }
 
-    return NextResponse.json(tenant);
+    // Transform the data to include total user count
+    const tenantWithTotalUsers = {
+      ...tenant,
+      _count: {
+        ...tenant._count,
+        users: tenant._count.users + tenant._count.managerAccess
+      }
+    };
+
+    return NextResponse.json(tenantWithTotalUsers);
   } catch (error) {
     console.error("[TENANT_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
@@ -118,12 +128,22 @@ export async function PATCH(
             users: true,
             documents: true,
             conversations: true,
+            managerAccess: true,
           },
         },
       },
     });
 
-    return NextResponse.json(tenant);
+    // Transform the data to include total user count
+    const tenantWithTotalUsers = {
+      ...tenant,
+      _count: {
+        ...tenant._count,
+        users: tenant._count.users + tenant._count.managerAccess
+      }
+    };
+
+    return NextResponse.json(tenantWithTotalUsers);
   } catch (error) {
     console.error("[TENANT_PATCH]", error);
     return new NextResponse("Internal Error", { status: 500 });

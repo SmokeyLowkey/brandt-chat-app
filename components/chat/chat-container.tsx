@@ -22,7 +22,7 @@ interface Message {
 
 export default function ChatContainer() {
   const { data: session } = useSession();
-  const { tenantId } = useTenant();
+  const { tenantId, tenantSlug } = useTenant();
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -46,6 +46,9 @@ export default function ChatContainer() {
     return 'aftermarket';
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Check if current tenant has access to catalog chat
+  const hasCatalogAccess = tenantSlug === 'brandt-cf' || tenantSlug === 'brandt-ag';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -72,6 +75,13 @@ export default function ChatContainer() {
     createNewConversation();
     setSelectedConversationId(null);
   }, [chatMode]);
+
+  // Reset to aftermarket mode if tenant doesn't have catalog access
+  useEffect(() => {
+    if (!hasCatalogAccess && chatMode === 'catalog') {
+      setChatMode('aftermarket');
+    }
+  }, [hasCatalogAccess, tenantSlug]);
 
   // Load conversation
   const loadConversation = async (conversationId: string) => {
@@ -364,25 +374,31 @@ export default function ChatContainer() {
           <h1 className="text-xl font-bold text-gray-800">Chat with Brandt AI</h1>
           <p className="text-sm text-gray-500">Ask questions about products, orders, or company information</p>
           
-          {/* Chat Mode Tabs */}
-          <div className="flex mt-3 border-b border-gray-200">
-            <button
-              className={`px-4 py-2 font-medium text-sm ${chatMode === 'aftermarket'
-                ? 'text-[#E31937] border-b-2 border-[#E31937]'
-                : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setChatMode('aftermarket')}
-            >
-              Aftermarket Chat
-            </button>
-            <button
-              className={`px-4 py-2 font-medium text-sm ${chatMode === 'catalog'
-                ? 'text-[#E31937] border-b-2 border-[#E31937]'
-                : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setChatMode('catalog')}
-            >
-              Catalog Chat
-            </button>
-          </div>
+          {/* Chat Mode Tabs - Only show catalog chat for brandt-cf and brandt-ag */}
+          {(tenantSlug === 'brandt-cf' || tenantSlug === 'brandt-ag') ? (
+            <div className="flex mt-3 border-b border-gray-200">
+              <button
+                className={`px-4 py-2 font-medium text-sm ${chatMode === 'aftermarket'
+                  ? 'text-[#E31937] border-b-2 border-[#E31937]'
+                  : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setChatMode('aftermarket')}
+              >
+                Aftermarket Chat
+              </button>
+              <button
+                className={`px-4 py-2 font-medium text-sm ${chatMode === 'catalog'
+                  ? 'text-[#E31937] border-b-2 border-[#E31937]'
+                  : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setChatMode('catalog')}
+              >
+                Catalog Chat
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 border-b border-gray-200 pb-2">
+              <span className="text-sm text-gray-600">Aftermarket Chat</span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col flex-1 overflow-hidden min-h-0">

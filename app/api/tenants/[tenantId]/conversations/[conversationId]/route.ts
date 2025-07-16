@@ -19,9 +19,24 @@ export async function GET(
     }
 
     // Check if user has access to this tenant
-    // Allow admins to access any tenant, but restrict other users to their assigned tenant
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
+    // Allow admins and managers to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER" && session.user.tenantId !== tenantId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    
+    // For managers, verify they have access to the tenant
+    if (session.user.role === "MANAGER" && session.user.tenantId !== tenantId) {
+      // Check if the manager has access to this tenant
+      const managerAccess = await prisma.managerTenantAccess.findFirst({
+        where: {
+          managerId: session.user.id,
+          tenantId: tenantId
+        }
+      });
+      
+      if (!managerAccess) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     // Fetch conversation with messages
@@ -78,9 +93,24 @@ export async function DELETE(
     }
 
     // Check if user has access to this tenant
-    // Allow admins to access any tenant, but restrict other users to their assigned tenant
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
+    // Allow admins and managers to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER" && session.user.tenantId !== tenantId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    
+    // For managers, verify they have access to the tenant
+    if (session.user.role === "MANAGER" && session.user.tenantId !== tenantId) {
+      // Check if the manager has access to this tenant
+      const managerAccess = await prisma.managerTenantAccess.findFirst({
+        where: {
+          managerId: session.user.id,
+          tenantId: tenantId
+        }
+      });
+      
+      if (!managerAccess) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     // Check if conversation exists and belongs to the user

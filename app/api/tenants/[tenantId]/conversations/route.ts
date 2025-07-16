@@ -30,6 +30,22 @@ export async function GET(
       console.log(`Access denied: User ${session.user.id} (${session.user.role}) tried to access tenant ${tenantId}`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+    
+    // For managers, verify they have access to the tenant
+    if (session.user.role === "MANAGER" && session.user.tenantId !== tenantId) {
+      // Check if the manager has access to this tenant
+      const managerAccess = await prisma.managerTenantAccess.findFirst({
+        where: {
+          managerId: session.user.id,
+          tenantId: tenantId
+        }
+      });
+      
+      if (!managerAccess) {
+        console.log(`Access denied: Manager ${session.user.id} does not have access to tenant ${tenantId}`);
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
 
     // Fetch conversations for the user in this tenant
     const conversations = await prisma.conversation.findMany({
@@ -105,13 +121,32 @@ export async function POST(
     const body = await req.json();
     const validatedData = ConversationSchema.parse(body);
 
+    // Determine the final mode to use
+    const finalMode = validatedData.mode || chatMode;
+
+    // Validate catalog chat mode access
+    if (finalMode === 'catalog') {
+      // Fetch the tenant to check its slug
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { slug: true }
+      });
+
+      if (!tenant || (tenant.slug !== 'brandt-cf' && tenant.slug !== 'brandt-ag')) {
+        return NextResponse.json(
+          { error: "Catalog chat is not available for this tenant" },
+          { status: 403 }
+        );
+      }
+    }
+
     // Create conversation
     const conversation = await prisma.conversation.create({
       data: {
         title: validatedData.title || "New conversation",
         tenantId: tenantId,
         userId: session.user.id,
-        mode: validatedData.mode || chatMode, // Use mode from request body or query parameter
+        mode: finalMode,
       },
     });
 

@@ -65,6 +65,22 @@ export async function POST(
       );
     }
 
+    // Validate catalog chat mode access
+    if (chatMode === 'catalog') {
+      // Fetch the tenant to check its slug
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { slug: true }
+      });
+
+      if (!tenant || (tenant.slug !== 'brandt-cf' && tenant.slug !== 'brandt-ag')) {
+        return NextResponse.json(
+          { error: "Catalog chat is not available for this tenant" },
+          { status: 403 }
+        );
+      }
+    }
+
     let conversation;
     let chatHistory: ChatMessage[] = [];
 

@@ -27,12 +27,21 @@ export async function GET() {
         _count: {
           select: {
             users: true,
+            managerAccess: true,
           },
         },
       },
     });
 
-    return NextResponse.json(tenants);
+    // Transform the data to include total user count (direct users + managers/admins with access)
+    const tenantsWithTotalUsers = tenants.map(tenant => ({
+      ...tenant,
+      _count: {
+        users: tenant._count.users + tenant._count.managerAccess
+      }
+    }));
+
+    return NextResponse.json(tenantsWithTotalUsers);
   } catch (error) {
     // console.error("[TENANTS_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });
@@ -120,13 +129,22 @@ export async function POST(req: Request) {
         _count: {
           select: {
             users: true,
+            managerAccess: true,
           },
         },
       },
     });
     
+    // Transform the data to include total user count
+    const tenantWithTotalUsers = {
+      ...tenant,
+      _count: {
+        users: tenant._count.users + tenant._count.managerAccess
+      }
+    };
+    
     // console.log("[TENANTS_POST] Tenant created successfully:", tenant.id);
-    return NextResponse.json(tenant);
+    return NextResponse.json(tenantWithTotalUsers);
   } catch (error) {
     // console.error("[TENANTS_POST] Error:", error);
     // console.error("[TENANTS_POST] Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
