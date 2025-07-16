@@ -12,6 +12,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname === "/login" ||
     pathname === "/change-password" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password" ||
     pathname.startsWith("/api/users") // Allow access to password change API
   ) {
     return NextResponse.next();

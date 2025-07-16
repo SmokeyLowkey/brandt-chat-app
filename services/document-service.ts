@@ -20,6 +20,10 @@ export interface Document {
   createdById: string
   createdAt: string
   updatedAt: string
+  user?: {
+    name: string
+    email: string
+  }
 }
 
 export interface DocumentCreateParams {
@@ -56,14 +60,30 @@ export class DocumentService {
    */
   static async getDocuments(tenantId: string, search?: string): Promise<Document[]> {
     try {
+      // Extract the base tenant ID if it contains a timestamp parameter
+      let actualTenantId = tenantId;
+      if (tenantId.includes('?')) {
+        actualTenantId = tenantId.split('?')[0];
+      }
+      
       // Build query parameters
       const queryParams = new URLSearchParams()
       if (search) {
         queryParams.append('search', search)
       }
       
-      const url = `/api/tenants/${tenantId}/documents?${queryParams.toString()}`
-      // console.log("DocumentService.getDocuments - Fetching from URL:", url)
+      // Add a timestamp to prevent caching issues
+      queryParams.append('t', Date.now().toString());
+      
+      // Use the cleaned tenant ID for the API request
+      let url = `/api/tenants/${actualTenantId}/documents`;
+      
+      // Add query parameters if any
+      if (queryParams.toString()) {
+        url += `?${queryParams.toString()}`;
+      }
+      
+      console.log("DocumentService.getDocuments - Fetching from URL:", url);
       
       // Make API request
       const response = await fetch(
@@ -83,8 +103,41 @@ export class DocumentService {
       }
 
       const data = await response.json()
-      // console.log("DocumentService.getDocuments - Response data length:", data.length)
-      return data
+      
+      // Validate that the response is an array
+      if (!Array.isArray(data)) {
+        console.error('API response is not an array:', data);
+        return []; // Return empty array instead of throwing
+      }
+      
+      console.log(`DocumentService.getDocuments - Received ${data.length} documents for tenant ${actualTenantId}`);
+      
+      // Log when no documents are found
+      if (data.length === 0) {
+        console.warn(`No documents found for tenant ${actualTenantId}`);
+        return [];
+      }
+      
+      // Log any tenant ID mismatches for debugging
+      const mismatchedDocs = data.filter(doc => doc.tenantId !== actualTenantId);
+      if (mismatchedDocs.length > 0) {
+        console.warn(`Found ${mismatchedDocs.length}/${data.length} documents with tenant IDs that don't match the requested tenant ID`);
+        console.warn(`Requested tenant ID: ${actualTenantId}`);
+        console.warn(`Document tenant IDs: ${[...new Set(data.map(doc => doc.tenantId))].join(', ')}`);
+      }
+      
+      // Log tenant ID distribution
+      const tenantCounts: Record<string, number> = {};
+      data.forEach(doc => {
+        const docTenantId = doc.tenantId;
+        tenantCounts[docTenantId] = (tenantCounts[docTenantId] || 0) + 1;
+      });
+      
+      console.log(`Document tenant distribution:`, tenantCounts);
+      
+      // Return all documents returned by the API
+      // The API should have already filtered for the correct tenant
+      return data;
     } catch (error) {
       console.error('Error fetching documents:', error)
       toast.error('Failed to fetch documents')

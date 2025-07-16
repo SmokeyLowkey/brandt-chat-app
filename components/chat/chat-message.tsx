@@ -1,7 +1,11 @@
 "use client";
 
-import { Bot, User } from "lucide-react";
+import { Bot, User, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
+import React from 'react';
 
 import { ComponentData } from "@/utils/chat-processing";
 import { CitedAnswer } from "@/components/chat/cited-answer";
@@ -159,8 +163,53 @@ export default function ChatMessage({
             )}>
               {componentData ? (
                 renderComponent(componentData, onViewSource)
+              ) : role === 'assistant' && !isUser ? (
+                // Use ReactMarkdown for assistant messages to properly render markdown
+                <ReactMarkdown
+                  rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                  components={{
+                    h1: ({node, ...props}) => <h1 className="text-lg font-bold mt-3 mb-2" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-md font-bold mt-3 mb-2" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-base font-bold mt-2 mb-1" {...props} />,
+                    p: ({node, ...props}) => <p className="mb-2" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 mt-1.5 space-y-0.5" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal pl-4 mb-2 mt-1.5 space-y-0.5" {...props} />,
+                    li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                    a: ({node, href, children, ...props}) => {
+                      // Check if the children is just a URL
+                      const isUrlText = React.Children.count(children) === 1 &&
+                        typeof children === 'string' &&
+                        children.toString().startsWith('http');
+                      
+                      return (
+                        <a
+                          href={href}
+                          className="text-blue-600 underline hover:text-blue-800"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            if (href) window.open(href, '_blank');
+                          }}
+                          {...props}
+                        >
+                          {children}
+                          <ExternalLink size={12} className="inline-block ml-1 mb-1" />
+                        </a>
+                      );
+                    },
+                    code: ({node, ...props}) => <code className="px-1 py-0.5 rounded font-mono text-xs bg-gray-100" {...props} />,
+                    pre: ({node, ...props}) => <pre className="rounded-md bg-gray-100 p-2 overflow-x-auto my-2 text-xs" {...props} />,
+                    hr: ({node, ...props}) => <hr className="my-4 border-gray-200" {...props} />,
+                    strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
+                    em: ({node, ...props}) => <em className="italic" {...props} />,
+                    blockquote: ({node, ...props}) => <blockquote className="pl-4 border-l-4 border-gray-200 italic" {...props} />,
+                  }}
+                >
+                  {content}
+                </ReactMarkdown>
               ) : (
-                /* Process the content as a whole to better handle multi-line lists */
+                /* Process the content as a whole to better handle multi-line lists for user messages */
                 (() => {
                 // Split content into lines
                 const lines = content.split('\n');

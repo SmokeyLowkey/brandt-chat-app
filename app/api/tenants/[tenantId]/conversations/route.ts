@@ -13,6 +13,11 @@ export async function GET(
     // Access params inside async context
     const params = await context.params;
     const tenantId = params.tenantId;
+    
+    // Get the chat mode from the query parameters
+    const { searchParams } = new URL(req.url);
+    const chatMode = searchParams.get('mode') || 'aftermarket';
+    
     const session = await getServerSession(authOptions);
     
     if (!session) {
@@ -20,8 +25,9 @@ export async function GET(
     }
 
     // Check if user has access to this tenant
-    // Allow admins to access any tenant, but restrict other users to their assigned tenant
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
+    // Allow admins and managers to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER" && session.user.tenantId !== tenantId) {
+      console.log(`Access denied: User ${session.user.id} (${session.user.role}) tried to access tenant ${tenantId}`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -30,6 +36,7 @@ export async function GET(
       where: {
         tenantId: tenantId,
         userId: session.user.id,
+        mode: chatMode, // Filter by chat mode
       },
       orderBy: {
         updatedAt: "desc",
@@ -55,6 +62,11 @@ export async function POST(
     // Access params inside async context
     const params = await context.params;
     const tenantId = params.tenantId;
+    
+    // Get the chat mode from the query parameters
+    const { searchParams } = new URL(req.url);
+    const chatMode = searchParams.get('mode') || 'aftermarket';
+    
     const session = await getServerSession(authOptions);
     
     if (!session) {
@@ -62,14 +74,32 @@ export async function POST(
     }
 
     // Check if user has access to this tenant
-    // Allow admins to access any tenant, but restrict other users to their assigned tenant
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
+    // Allow admins and managers to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER" && session.user.tenantId !== tenantId) {
+      console.log(`Access denied: User ${session.user.id} (${session.user.role}) tried to access tenant ${tenantId}`);
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    
+    // For managers, verify they have access to the tenant
+    if (session.user.role === "MANAGER" && session.user.tenantId !== tenantId) {
+      // Check if the manager has access to this tenant
+      const managerAccess = await prisma.managerTenantAccess.findFirst({
+        where: {
+          managerId: session.user.id,
+          tenantId: tenantId
+        }
+      });
+      
+      if (!managerAccess) {
+        console.log(`Access denied: Manager ${session.user.id} does not have access to tenant ${tenantId}`);
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     // Validate request body
     const ConversationSchema = z.object({
       title: z.string().optional(),
+      mode: z.enum(['aftermarket', 'catalog']).optional(),
     });
 
     const body = await req.json();
@@ -81,6 +111,7 @@ export async function POST(
         title: validatedData.title || "New conversation",
         tenantId: tenantId,
         userId: session.user.id,
+        mode: validatedData.mode || chatMode, // Use mode from request body or query parameter
       },
     });
 

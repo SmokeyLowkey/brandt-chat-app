@@ -18,14 +18,36 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { key, url, name, size, type, overrideTenantId, namespace, description, text_blocks_redacted } = body;
     
-    // Get tenant ID from session or use override for admins
+    // Get tenant ID from session or use override for admins and managers
     let tenantId = session.user.tenantId;
     const userId = session.user.id;
+    const userRole = session.user.role;
     
-    // Allow admins to override the tenant ID
-    if (session.user.role === "ADMIN" && overrideTenantId) {
-      console.log(`Admin ${userId} overriding tenant ID to ${overrideTenantId}`);
-      tenantId = overrideTenantId;
+    // Allow admins and managers to override the tenant ID
+    if ((userRole === "ADMIN" || userRole === "MANAGER") && overrideTenantId) {
+      console.log(`User ${userId} (${userRole}) overriding tenant ID from ${tenantId} to ${overrideTenantId}`);
+      
+      // For managers, verify they have access to the override tenant
+      if (userRole === "MANAGER" && tenantId !== overrideTenantId) {
+        // Check if the manager has access to the override tenant
+        const hasAccess = await prisma.managerTenantAccess.findFirst({
+          where: {
+            managerId: userId,
+            tenantId: overrideTenantId
+          }
+        });
+        
+        if (hasAccess) {
+          console.log(`Manager ${userId} has verified access to tenant ${overrideTenantId}`);
+          tenantId = overrideTenantId;
+        } else {
+          console.warn(`Manager ${userId} attempted to override to tenant ${overrideTenantId} without access`);
+          // Keep the original tenant ID
+        }
+      } else if (userRole === "ADMIN") {
+        // Admins can override to any tenant
+        tenantId = overrideTenantId;
+      }
     }
 
     if (!tenantId || !key || !url || !name) {
@@ -48,32 +70,84 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Create document in database with initial metadata
-      // Note: Status will default to PROCESSING due to schema constraints,
-      // but we'll add a flag in metadata to indicate it's not yet being processed by n8n
-      // Create document without the text_blocks_redacted field
-      const document = await prisma.document.create({
-        data: {
+      // Check if a document with the same name already exists in this tenant
+      const existingDocument = await prisma.document.findFirst({
+        where: {
           name,
-          type: name.split(".").pop() || "unknown",
-          url,
-          userId,
           tenantId,
-          metadata: {
-            size,
-            uploadedAt: new Date().toISOString(),
-            mimeType: type,
-            s3Key: key,
-            namespace: namespace || "General",
-            description: description || "",
-            processingState: "UPLOADED_TO_S3", // Custom flag to track actual state
-            sentToProcessing: false // Will be set to true in sendDocumentToProcessing
-          }
         },
         select: {
-          id: true
+          id: true,
+          status: true,
+          metadata: true,
         }
       });
+      
+      let document;
+      
+      if (existingDocument) {
+        console.log(`Document with name "${name}" already exists in tenant ${tenantId}, updating instead of creating new`);
+        
+        // If the document exists but is in FAILED state, we can retry processing
+        if (existingDocument.status === "FAILED") {
+          // Update the existing document
+          document = await prisma.document.update({
+            where: {
+              id: existingDocument.id,
+            },
+            data: {
+              status: "PROCESSING", // Reset status to PROCESSING
+              url, // Update URL in case it changed
+              metadata: {
+                ...(existingDocument.metadata as any || {}),
+                size,
+                uploadedAt: new Date().toISOString(),
+                mimeType: type,
+                s3Key: key,
+                namespace: namespace || "General",
+                description: description || "",
+                processingState: "UPLOADED_TO_S3", // Custom flag to track actual state
+                sentToProcessing: false, // Will be set to true in sendDocumentToProcessing
+                retryCount: ((existingDocument.metadata as any)?.retryCount || 0) + 1,
+                retryAt: new Date().toISOString(),
+              }
+            },
+            select: {
+              id: true
+            }
+          });
+        } else {
+          // If the document is already in PROCESSING or PROCESSED state, just return it
+          document = existingDocument;
+          
+          // Log that we're not creating a new document
+          console.log(`Document ${existingDocument.id} is already in ${existingDocument.status} state, not creating a new one`);
+        }
+      } else {
+        // Create a new document in database with initial metadata
+        document = await prisma.document.create({
+          data: {
+            name,
+            type: name.split(".").pop() || "unknown",
+            url,
+            userId,
+            tenantId,
+            metadata: {
+              size,
+              uploadedAt: new Date().toISOString(),
+              mimeType: type,
+              s3Key: key,
+              namespace: namespace || "General",
+              description: description || "",
+              processingState: "UPLOADED_TO_S3", // Custom flag to track actual state
+              sentToProcessing: false // Will be set to true in sendDocumentToProcessing
+            }
+          },
+          select: {
+            id: true
+          }
+        });
+      }
       
       // Create notification for the tenant
       await createNotification({

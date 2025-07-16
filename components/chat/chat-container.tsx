@@ -37,6 +37,14 @@ export default function ChatContainer() {
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [queryType, setQueryType] = useState<string>("general");
+  const [chatMode, setChatMode] = useState<'aftermarket' | 'catalog'>(() => {
+    // Initialize from localStorage if available
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chatMode');
+      return saved === 'catalog' ? 'catalog' : 'aftermarket';
+    }
+    return 'aftermarket';
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -53,6 +61,17 @@ export default function ChatContainer() {
     createNewConversation();
     setSelectedConversationId(null);
   }, [tenantId]);
+  
+  // Persist chat mode to localStorage and reset conversation when mode changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatMode', chatMode);
+    }
+    
+    // Reset conversation when chat mode changes
+    createNewConversation();
+    setSelectedConversationId(null);
+  }, [chatMode]);
 
   // Load conversation
   const loadConversation = async (conversationId: string) => {
@@ -170,7 +189,8 @@ export default function ChatContainer() {
         body: JSON.stringify({
           message: messageText,
           conversationId: selectedConversationId,
-          isRetry: isRetry
+          isRetry: isRetry,
+          chatMode: chatMode // Include the chat mode
         }),
         signal: controller.signal
       });
@@ -336,12 +356,33 @@ export default function ChatContainer() {
         onSelectConversation={loadConversation}
         onNewConversation={createNewConversation}
         onDeleteConversation={deleteConversation}
+        chatMode={chatMode}
       />
       
       <div className="flex flex-col flex-1 h-full max-h-screen overflow-hidden p-3">
         <div className="mb-3 flex-shrink-0">
           <h1 className="text-xl font-bold text-gray-800">Chat with Brandt AI</h1>
           <p className="text-sm text-gray-500">Ask questions about products, orders, or company information</p>
+          
+          {/* Chat Mode Tabs */}
+          <div className="flex mt-3 border-b border-gray-200">
+            <button
+              className={`px-4 py-2 font-medium text-sm ${chatMode === 'aftermarket'
+                ? 'text-[#E31937] border-b-2 border-[#E31937]'
+                : 'text-gray-500 hover:text-gray-700'}`}
+              onClick={() => setChatMode('aftermarket')}
+            >
+              Aftermarket Chat
+            </button>
+            <button
+              className={`px-4 py-2 font-medium text-sm ${chatMode === 'catalog'
+                ? 'text-[#E31937] border-b-2 border-[#E31937]'
+                : 'text-gray-500 hover:text-gray-700'}`}
+              onClick={() => setChatMode('catalog')}
+            >
+              Catalog Chat
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col flex-1 overflow-hidden min-h-0">

@@ -166,20 +166,21 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
       
       <div className="rounded-md border">
         <div className="grid grid-cols-12 gap-2 border-b bg-gray-50 p-4 text-sm font-medium text-gray-500">
-          <div className="col-span-4">Name</div>
+          <div className="col-span-3">Name</div>
           <div className="col-span-2">Namespace</div>
           <div className="col-span-1">Type</div>
           <div className="col-span-2">Size</div>
           <div className="col-span-2">Status</div>
+          <div className="col-span-1">Uploaded By</div>
           <div className="col-span-1"></div>
         </div>
         <div className="divide-y">
           {documents.length > 0 ? (
             documents.map((doc) => (
               <div key={doc.id} className="grid grid-cols-12 gap-2 p-4 text-sm items-center">
-                <div className="col-span-4 flex items-center gap-2">
+                <div className="col-span-3 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                  <span className="font-medium truncate max-w-[250px]" title={doc.name}>{doc.name}</span>
+                  <span className="font-medium truncate max-w-[200px]" title={doc.name}>{doc.name}</span>
                 </div>
                 <div className="col-span-2">
                   <span className="truncate max-w-[120px] inline-block" title={(doc.metadata as any)?.namespace || "General"}>
@@ -200,6 +201,11 @@ export function DocumentList({ documents, onDocumentDelete, onDocumentRetry }: D
                     ) : (
                       doc.status.charAt(0) + doc.status.slice(1).toLowerCase()
                     )}
+                  </span>
+                </div>
+                <div className="col-span-1">
+                  <span className="truncate max-w-[100px] inline-block" title={(doc as any).user?.name || "Unknown"}>
+                    {(doc as any).user?.name || "Unknown"}
                   </span>
                 </div>
                 <div className="col-span-1 flex justify-end gap-1">

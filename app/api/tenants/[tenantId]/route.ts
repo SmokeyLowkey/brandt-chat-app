@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { hasUserTenantAccess } from "@/utils/access-control";
 
 // GET /api/tenants/[tenantId] - Get a specific tenant
 export async function GET(
@@ -18,8 +19,25 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Only admins or users from the same tenant can access tenant details
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
+    // Check if user has access to this tenant using the access control utility
+    const user = await prisma.user.findUnique({
+      where: {
+        id: session.user.id,
+      },
+    });
+    
+    if (!user) {
+      return new NextResponse("User not found", { status: 404 });
+    }
+    
+    const hasAccess = await hasUserTenantAccess(
+      user.id,
+      tenantId,
+      user.role,
+      user.tenantId
+    );
+    
+    if (!hasAccess) {
       return new NextResponse("Forbidden", { status: 403 });
     }
 
@@ -64,11 +82,20 @@ export async function PATCH(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Only admins or tenant admins can update tenant details
-    if (
-      session.user.role !== "ADMIN" &&
-      (session.user.tenantId !== tenantId || session.user.role !== "ADMIN")
-    ) {
+    // Check if user has access to this tenant using the access control utility
+    const user = await prisma.user.findUnique({
+      where: {
+        id: session.user.id,
+      },
+    });
+    
+    if (!user) {
+      return new NextResponse("User not found", { status: 404 });
+    }
+    
+    // For updating tenants, we only allow admins
+    // Managers can view but not update tenants
+    if (user.role !== "ADMIN") {
       return new NextResponse("Forbidden", { status: 403 });
     }
 

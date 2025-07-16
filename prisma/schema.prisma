@@ -26,6 +26,7 @@ model Tenant {
   documents     Document[]
   conversations Conversation[]
   notifications Notification[]
+  managerAccess ManagerTenantAccess[]
 
   @@map("tenants")
 }
@@ -54,6 +55,7 @@ model User {
   documents     Document[]
   conversations Conversation[]
   notifications Notification[]
+  accessibleTenants ManagerTenantAccess[]
 
   @@index([tenantId])
   @@map("users")
@@ -99,6 +101,17 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("password_reset_tokens")
 }
 
 // Document management models
@@ -163,6 +176,7 @@ model DocumentChunk {
 model Conversation {
   id        String   @id @default(cuid())
   title     String?
+  mode      String   @default("aftermarket") // Chat mode: "aftermarket" or "catalog"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -218,6 +232,26 @@ model Notification {
   @@index([tenantId])
   @@index([userId])
   @@map("notifications")
+}
+
+// Manager-Tenant Access model for multi-tenant access
+model ManagerTenantAccess {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Manager relation
+  managerId String
+  manager   User   @relation(fields: [managerId], references: [id], onDelete: Cascade)
+
+  // Tenant relation
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([managerId, tenantId])
+  @@index([managerId])
+  @@index([tenantId])
+  @@map("manager_tenant_access")
 }
 
 // Enums

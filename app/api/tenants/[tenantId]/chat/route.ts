@@ -25,17 +25,37 @@ export async function POST(
     }
 
     // Check if the user has access to this tenant
-    // Allow admins to access any tenant, but restrict other users to their assigned tenant
-    if (session.user.role !== "ADMIN" && session.user.tenantId !== tenantId) {
+    // Allow admins and managers to access any tenant, but restrict other users to their assigned tenant
+    if (session.user.role !== "ADMIN" && session.user.role !== "MANAGER" && session.user.tenantId !== tenantId) {
+      console.log(`Access denied: User ${session.user.id} (${session.user.role}) tried to access tenant ${tenantId}`);
       return NextResponse.json(
         { error: "Forbidden: You don't have access to this tenant" },
         { status: 403 }
       );
     }
+    
+    // For managers, verify they have access to the tenant
+    if (session.user.role === "MANAGER" && session.user.tenantId !== tenantId) {
+      // Check if the manager has access to this tenant
+      const managerAccess = await prisma.managerTenantAccess.findFirst({
+        where: {
+          managerId: session.user.id,
+          tenantId: tenantId
+        }
+      });
+      
+      if (!managerAccess) {
+        console.log(`Access denied: Manager ${session.user.id} does not have access to tenant ${tenantId}`);
+        return NextResponse.json(
+          { error: "Forbidden: You don't have access to this tenant" },
+          { status: 403 }
+        );
+      }
+    }
 
     // Parse the request body
     const body = await request.json();
-    const { message, conversationId, isRetry } = body;
+    const { message, conversationId, isRetry, chatMode = 'aftermarket' } = body;
 
     // Validate the request
     if (!message) {
@@ -72,8 +92,10 @@ export async function POST(
         );
       }
 
-      // Convert messages to ChatMessage format
-      chatHistory = conversation.messages.map(msg => ({
+      // Convert messages to ChatMessage format, but limit the number to prevent memory issues
+      // Only include the last 20 messages to prevent memory overflow
+      const recentMessages = conversation.messages.slice(-20);
+      chatHistory = recentMessages.map(msg => ({
         role: msg.role === "USER" ? "user" : msg.role === "ASSISTANT" ? "assistant" : "system",
         content: msg.content,
         timestamp: msg.createdAt.toISOString(),
@@ -154,7 +176,9 @@ export async function POST(
         
         // Convert messages to ChatMessage format if conversation exists
         if (conversation) {
-          chatHistory = conversation.messages.map(msg => ({
+          // Limit the number of messages to prevent memory issues
+          const recentMessages = conversation.messages.slice(-20);
+          chatHistory = recentMessages.map(msg => ({
             role: msg.role === "USER" ? "user" : msg.role === "ASSISTANT" ? "assistant" : "system",
             content: msg.content,
             timestamp: msg.createdAt.toISOString(),
@@ -176,6 +200,7 @@ export async function POST(
             title: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
             tenantId: tenantId,
             userId: session.user.id,
+            mode: chatMode, // Set the chat mode
           },
         });
         
@@ -216,7 +241,8 @@ export async function POST(
       chatHistory,
       tenantId,
       session.user.id,
-      sessionId // Pass the generated session ID
+      chatMode,
+      sessionId, // Pass the generated session ID
     );
     
     // Log the raw response received from the webhook
@@ -285,6 +311,13 @@ export async function POST(
     } else if (error.response?.status === 404 || error.message?.includes('not found')) {
       errorMessage = "The requested resource was not found.";
       statusCode = 404; // Not Found
+    } else if (error.message?.includes('Array buffer allocation failed') ||
+               error.message?.includes('memory') ||
+               error.message?.includes('RangeError')) {
+      errorMessage = "Memory limit exceeded";
+      statusCode = 413; // Payload Too Large
+      userFriendlyMessage = "I apologize, but your request is too complex for me to process. Please try breaking it down into smaller, more specific questions.";
+      console.error("Memory error details:", error.message);
     }
     
     // Check if the error might be related to "max iterations"

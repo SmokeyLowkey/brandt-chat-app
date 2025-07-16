@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { signOut, useSession } from "next-auth/react"
-import { Bell, Search, Building, CheckCircle2, User } from "lucide-react"
+import { Bell, Search, Building, CheckCircle2, User, Home } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,7 +24,16 @@ export function Header() {
   const [tenants, setTenants] = useState<any[]>([])
   const [isLoadingTenants, setIsLoadingTenants] = useState(false)
   const { data: session } = useSession()
-  const { tenantName, tenantId, isAdmin, setOverrideTenant, resetToUserTenant } = useTenant()
+  const {
+    tenantName,
+    tenantId,
+    isAdmin,
+    isManager,
+    accessibleTenants,
+    isLoadingAccessibleTenants,
+    setOverrideTenant,
+    resetToUserTenant
+  } = useTenant()
   
   // Fetch tenants for admin
   useEffect(() => {
@@ -94,8 +103,8 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Tenant Selector for Admins */}
-          {isAdmin && (
+          {/* Tenant Selector for Admins and Managers */}
+          {(isAdmin || isManager) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2">
@@ -106,17 +115,28 @@ export function Header() {
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Switch Tenant</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {isLoadingTenants ? (
+                {/* Show loading state */}
+                {(isLoadingTenants || isLoadingAccessibleTenants) ? (
                   <DropdownMenuItem disabled>Loading tenants...</DropdownMenuItem>
                 ) : (
                   <>
-                    {tenants.map((tenant) => (
+                    {/* Show appropriate tenants based on role */}
+                    {(isAdmin ? tenants : accessibleTenants).map((tenant) => (
                       <DropdownMenuItem
                         key={tenant.id}
                         onClick={() => handleTenantSelect(tenant)}
                         className="cursor-pointer flex items-center justify-between"
                       >
-                        <span className="truncate">{tenant.name}</span>
+                        <div className="flex items-center">
+                          {/* Show home icon for home tenant */}
+                          {!isAdmin && tenant.isHomeTenant && (
+                            <Home className="h-4 w-4 mr-2 text-gray-500" />
+                          )}
+                          <span className={`truncate ${!isAdmin && tenant.isHomeTenant ? 'font-medium' : ''}`}>
+                            {tenant.name}
+                            {!isAdmin && tenant.isHomeTenant && " (Home)"}
+                          </span>
+                        </div>
                         {tenant.id === tenantId && (
                           <CheckCircle2 className="h-4 w-4 text-green-500" />
                         )}

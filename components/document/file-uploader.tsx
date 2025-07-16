@@ -30,7 +30,7 @@ interface FileUploaderProps {
 export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const router = useRouter();
   const { data: session } = useSession();
-  const { tenantId, isAdmin } = useTenant();
+  const { tenantId, isAdmin, tenantSettings } = useTenant();
   const { addUpload, updateUpload, cancelUpload } = useUploads();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
@@ -46,38 +46,27 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const [namespaces, setNamespaces] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Fetch namespaces from tenant settings
+  // Get namespaces from tenant settings
   useEffect(() => {
-    const fetchTenantSettings = async () => {
-      if (!tenantId) return;
-      
-      // Reset namespace selection and description when tenant changes
-      setSelectedNamespace("");
-      setNamespaces([]);
-      setDescription("");
-      
-      // Also clear any selected files when tenant changes
-      clearSelectedFiles();
-      
-      try {
-        const response = await fetch(`/api/tenants/${tenantId}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.settings?.documentNamespaces) {
-            setNamespaces(data.settings.documentNamespaces);
-            // Set default namespace if available
-            if (data.settings.documentNamespaces.length > 0) {
-              setSelectedNamespace(data.settings.documentNamespaces[0]);
-            }
-          }
-        }
-      } catch (error) {
-        // console.error("Error fetching tenant settings:", error);
-      }
-    };
+    if (!tenantId) return;
     
-    fetchTenantSettings();
-  }, [tenantId]);
+    // Reset namespace selection and description when tenant changes
+    setSelectedNamespace("");
+    setNamespaces([]);
+    setDescription("");
+    
+    // Also clear any selected files when tenant changes
+    clearSelectedFiles();
+    
+    // Get namespaces from tenant settings
+    if (tenantSettings?.documentNamespaces) {
+      setNamespaces(tenantSettings.documentNamespaces);
+      // Set default namespace if available
+      if (tenantSettings.documentNamespaces.length > 0) {
+        setSelectedNamespace(tenantSettings.documentNamespaces[0]);
+      }
+    }
+  }, [tenantId, tenantSettings]);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -116,6 +105,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const uploadFile = async (file: File): Promise<string | null> => {
     try {
       // Create an upload entry in the global manager
+      // Always use the current tenant ID
       const uploadId = addUpload({
         fileName: file.name,
         status: 'uploading',
@@ -136,7 +126,7 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
       updateUpload(uploadId, { progress: 0 });
 
       // Upload file to S3 with progress tracking
-      // Pass the override tenant ID for admins to ensure S3 path matches document tenant
+      // Always pass the current tenant ID to ensure S3 path matches document tenant
       const { key, url } = await uploadFileToS3(
         file,
         (progress) => {
@@ -149,8 +139,8 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           // Update global upload progress
           updateUpload(uploadId, { progress });
         },
-        // Pass the override tenant ID for admins, ensuring it's a string or undefined
-        isAdmin && tenantId ? tenantId : undefined
+        // Always pass the current tenant ID, ensuring it's a string or undefined
+        tenantId ? tenantId : undefined
       );
       
       // Store the S3 key for potential cancellation
@@ -177,8 +167,9 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
           name: file.name,
           size: file.size,
           type: file.type,
-          // Pass the override tenant ID for admins
-          overrideTenantId: isAdmin ? tenantId : undefined,
+          // Always pass the current tenant ID as the override tenant ID
+          // This ensures documents are created in the currently selected tenant
+          overrideTenantId: tenantId,
           // Pass namespace and description
           namespace: selectedNamespace,
           description: description,

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import jwt from "jsonwebtoken";
+import { getTechnicalDomains } from "@/utils/tenant-domains";
 
 /**
  * Interface for chat message
@@ -241,16 +242,28 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
  * @returns An object with the extracted component data and the cleaned text
  */
 function processAnthropicResponse(text: string): { componentData: ComponentData | null, cleanedText: string } {
+  // Safety check for null or empty text
+  if (!text || typeof text !== 'string') {
+    return { componentData: null, cleanedText: text || '' };
+  }
+  
+  // Limit text size to prevent memory issues
+  const maxTextLength = 100000; // 100KB max
+  const truncatedText = text.length > maxTextLength ? text.substring(0, maxTextLength) : text;
+  
   // First check if the text contains a code block with JSON
-  const codeBlockMatch = text.match(/```json\n([\s\S]*?)\n```/);
+  const codeBlockMatch = truncatedText.match(/```json\n([\s\S]*?)\n```/);
   if (codeBlockMatch && codeBlockMatch[1]) {
     try {
-      const jsonData = JSON.parse(codeBlockMatch[1]);
+      // Limit JSON size to prevent memory issues
+      const jsonText = codeBlockMatch[1].length > 50000 ? codeBlockMatch[1].substring(0, 50000) : codeBlockMatch[1];
+      const jsonData = JSON.parse(jsonText);
+      
       if (jsonData && jsonData.component && jsonData.props) {
         // Extract the text part (without the JSON code block)
-        const cleanedText = text.substring(0, text.indexOf('```json')).trim();
+        const cleanedText = truncatedText.substring(0, truncatedText.indexOf('```json')).trim();
         
-        console.log("Extracted component data from code block:", JSON.stringify(jsonData));
+        console.log("Extracted component data from code block");
         
         return {
           componentData: jsonData,
@@ -263,23 +276,31 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
   }
   
   // If no code block or parsing failed, try the original method (looking for JSON object)
-  const jsonStartIndex = text.indexOf('{');
+  const jsonStartIndex = truncatedText.indexOf('{');
   if (jsonStartIndex <= 0) {
     // Not an Anthropic response or JSON is at the beginning
-    return { componentData: null, cleanedText: text };
+    return { componentData: null, cleanedText: truncatedText };
   }
   
   try {
-    // Try to find the JSON part
+    // Try to find the JSON part with a safety limit to prevent infinite loops
     let jsonEndIndex = -1;
     let bracketCount = 0;
     let inString = false;
+    let maxIterations = 10000; // Safety limit
+    let iterations = 0;
     
-    for (let i = jsonStartIndex; i < text.length; i++) {
-      const char = text[i];
+    for (let i = jsonStartIndex; i < truncatedText.length; i++) {
+      iterations++;
+      if (iterations > maxIterations) {
+        console.warn("Exceeded max iterations when parsing JSON");
+        break;
+      }
+      
+      const char = truncatedText[i];
       
       // Handle string boundaries
-      if (char === '"' && (i === 0 || text[i-1] !== '\\')) {
+      if (char === '"' && (i === 0 || truncatedText[i-1] !== '\\')) {
         inString = !inString;
       }
       
@@ -298,11 +319,15 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
     
     if (jsonEndIndex === -1) {
       // Couldn't find matching closing bracket
-      return { componentData: null, cleanedText: text };
+      return { componentData: null, cleanedText: truncatedText };
     }
     
-    // Extract the JSON part
-    const jsonPart = text.substring(jsonStartIndex, jsonEndIndex);
+    // Extract the JSON part with size limit
+    const jsonPart = truncatedText.substring(jsonStartIndex, jsonEndIndex);
+    if (jsonPart.length > 50000) {
+      console.warn("JSON part too large, truncating");
+      return { componentData: null, cleanedText: truncatedText };
+    }
     
     // Parse the JSON
     const parsedData = JSON.parse(jsonPart);
@@ -310,10 +335,9 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
     // Check if it's a valid component
     if (parsedData && parsedData.component && parsedData.props) {
       // Extract the text part (without the JSON)
-      const cleanedText = text.substring(0, jsonStartIndex).trim();
+      const cleanedText = truncatedText.substring(0, jsonStartIndex).trim();
       
-      // Log the extracted component data
-      console.log("Extracted component data from Anthropic response:", JSON.stringify(parsedData));
+      console.log("Extracted component data from Anthropic response");
       
       return {
         componentData: parsedData,
@@ -325,7 +349,7 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
   }
   
   // Default return if anything fails
-  return { componentData: null, cleanedText: text };
+  return { componentData: null, cleanedText: truncatedText };
 }
 
 /**
@@ -389,25 +413,39 @@ export async function sendChatMessage(
   chatHistory: ChatMessage[],
   tenantId: string,
   userId: string,
+  chatMode: 'aftermarket' | 'catalog' = 'aftermarket', // Add chat mode parameter with default
   sessionId?: string,
   maxRetries: number = 2 // Default to 2 retries
 ) {
-  // Use the chat webhook URL from environment variables
-  // const n8nChatWebhookUrl = process.env.N8N_CHAT_WEBHOOK_URL;
-  const n8nChatWebhookUrl = process.env.N8N_CHAT_WEBHOOK_URL;
+  // Determine which webhook URL to use based on chat mode and environment
+  let n8nChatWebhookUrl: string | undefined;
+  const isTestMode = process.env.NODE_ENV !== 'production';
+  
+  if (chatMode === 'catalog') {
+    // Use John Deere catalog webhook URL
+    n8nChatWebhookUrl = isTestMode
+      ? process.env.N8N_JOHN_DEERE_CATALOG_TEST_WEBHOOK_URL
+      : process.env.N8N_JOHN_DEERE_CATALOG_WEBHOOK_URL;
+  } else {
+    // Use regular chat webhook URL for aftermarket
+    n8nChatWebhookUrl = isTestMode
+      ? process.env.N8N_CHAT_TEST_WEBHOOK_URL
+      : process.env.N8N_CHAT_WEBHOOK_URL;
+  }
 
   if (!n8nChatWebhookUrl) {
-    console.warn("N8N_CHAT_WEBHOOK_URL and N8N_CHAT_TEST_WEBHOOK_URL not configured");
+    const webhookType = isTestMode ? "test" : "production";
+    console.warn(`${webhookType} webhook URL for ${chatMode} chat not configured`);
     
     // If n8n webhook is not configured, return a fallback response
     return {
       role: "assistant",
-      content: "I'm sorry, the chat service is not properly configured. Please contact support.",
+      content: `I'm sorry, the ${chatMode} chat service (${webhookType} mode) is not properly configured. Please contact support.`,
       timestamp: new Date().toISOString()
     };
   }
 
-  // console.log("Using webhook URL:", n8nChatWebhookUrl);
+  console.log(`Using ${isTestMode ? 'test' : 'production'} webhook URL for ${chatMode} chat:`, n8nChatWebhookUrl);
 
   // Use the JWT_SECRET and JWT_ALGORITHM directly from environment variables
   const jwtSecret = process.env.JWT_SECRET;
@@ -467,25 +505,32 @@ export async function sendChatMessage(
     }
     
     // Fetch all documents for this tenant to extract namespaces
+    // Limit the query to avoid memory issues
     const tenantDocuments = await prisma.document.findMany({
       where: { tenantId: tenantId },
-      select: { metadata: true }
+      select: { metadata: true },
+      take: 100 // Limit to 100 documents to prevent memory issues
     });
     
     // Extract unique namespaces from document metadata
     const tenantNamespaces = new Set<string>();
     
-    tenantDocuments.forEach(doc => {
+    // Process documents in batches to avoid memory issues
+    for (const doc of tenantDocuments) {
       const docNamespace = (doc.metadata as any)?.namespace;
       if (docNamespace && typeof docNamespace === 'string') {
         tenantNamespaces.add(docNamespace);
       }
-    });
+    }
     
     // If no namespaces were found, don't add any default
     
     // Convert Set to Array
     const namespaceArray = Array.from(tenantNamespaces);
+    
+    // Get technical domains for this tenant and chat mode
+    const technicalDomains = await getTechnicalDomains(tenantId, chatMode);
+    console.log(`Technical domains for tenant ${tenantId} in ${chatMode} mode:`, technicalDomains);
     
     // Prepare the payload for the webhook
     // Format the payload according to the n8n workflow expectations
@@ -494,9 +539,11 @@ export async function sendChatMessage(
       chatHistory,
       tenantId,
       userId,
+      chatMode, // Include the chat mode
       sessionId: sessionId || `session_${Date.now()}`, // Include session ID or generate one
       timestamp: new Date().toISOString(),
       namespaces: namespaceArray, // Include array of all tenant namespaces
+      technicalDomains, // Include technical domains for this tenant and chat mode
       metadata: {
         tenant: {
           id: tenantId,
@@ -547,7 +594,12 @@ export async function sendChatMessage(
           headers,
           // Further increased timeout to allow more time for webhook processing in production
           timeout: 240000, // 240 seconds (4 minutes) instead of 3 minutes
-          validateStatus: (status) => status < 500 // Don't throw for 4xx errors
+          validateStatus: (status) => status < 500, // Don't throw for 4xx errors
+          // Add max content length and response size limits to prevent memory issues
+          maxContentLength: 10 * 1024 * 1024, // 10 MB max request size
+          maxBodyLength: 10 * 1024 * 1024,    // 10 MB max request body size
+          // Add response size limit
+          maxRedirects: 5,                    // Limit redirects to prevent infinite loops
         });
         
         // console.log("Webhook response status:", response.status);
@@ -580,16 +632,29 @@ export async function sendChatMessage(
           // Create a more specific message based on the error type
           let fallbackMessage = "I'm currently operating in fallback mode. The AI service is temporarily unavailable, but I've saved your message and will process it when the service is restored.";
           
-          // Add specific handling for timeout errors
+          // Add specific handling for different error types
           if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
             console.error("Request timeout error:", error.message);
             fallbackMessage = "I apologize, but the request is taking longer than expected to process. Your message has been saved and will be processed when the service is available. Please try again in a moment or try rephrasing your question to be more specific.";
+          } else if (error.code === 'ECONNREFUSED') {
+            console.error("Connection refused error:", error.message);
+            fallbackMessage = "I'm unable to connect to the AI service at the moment. Your message has been saved and will be processed when the service is available.";
+          } else if (error.code === 'ENOTFOUND') {
+            console.error("Host not found error:", error.message);
+            fallbackMessage = "The AI service is currently unreachable. Your message has been saved and will be processed when the service is available.";
+          } else if (error.message.includes('Network Error')) {
+            console.error("Network error:", error.message);
+            fallbackMessage = "There appears to be a network issue connecting to the AI service. Your message has been saved and will be processed when the connection is restored.";
+          } else if (error.message.includes('memory') || error.message.includes('buffer')) {
+            console.error("Memory error:", error.message);
+            fallbackMessage = "I apologize, but your request is too complex for me to process right now. Please try breaking it down into smaller, more specific questions.";
           }
           
           // Use a fallback response
           responseData = {
             message: fallbackMessage,
-            isFallbackMode: true // Add a flag to indicate fallback mode
+            isFallbackMode: true, // Add a flag to indicate fallback mode
+            content: fallbackMessage // Ensure content is set for consistent response format
           };
         }
         
@@ -983,6 +1048,38 @@ export async function sendChatMessage(
     if (!responseContent) {
       console.warn("No content extracted from webhook response, returning empty response");
       console.warn("Full response data:", JSON.stringify(responseData));
+    }
+    
+    // Add detailed logging for catalog chat responses
+    if (chatMode === 'catalog') {
+      console.log("========== CATALOG CHAT RESPONSE (BEFORE FORMATTING) ==========");
+      console.log(responseContent);
+      console.log("==============================================================");
+      
+      // Enhance markdown formatting for a modern chat window appearance
+      responseContent = responseContent
+        // Ensure main headings are properly formatted with spacing
+        .replace(/^##\s+(.*)$/gm, '\n## $1\n')
+        // Enhance part numbers with consistent formatting
+        .replace(/\*\*Part Number: ([^*]+)\*\*/g, '**Part Number:** `$1`')
+        // Enhance other bold items with better formatting
+        .replace(/\*\*([^:*]+):\*\*/g, '**$1:**')
+        // Ensure consistent spacing between sections
+        .replace(/\n\n\n+/g, '\n\n')
+        // Add horizontal rules between major sections for visual separation
+        .replace(/\n## /g, '\n\n---\n\n## ');
+      
+      console.log("========== CATALOG CHAT RESPONSE (AFTER FORMATTING) ==========");
+      console.log(responseContent);
+      console.log("==============================================================");
+      
+      // Log the response format details
+      console.log("Catalog response format details:");
+      console.log("- Contains markdown headings:", responseContent.includes('##'));
+      console.log("- Contains bold text:", responseContent.includes('**'));
+      console.log("- Contains code blocks:", responseContent.includes('`'));
+      console.log("- Contains horizontal rules:", responseContent.includes('---'));
+      console.log("- Response length:", responseContent.length);
     }
     
     // Create the assistant message with the extracted content

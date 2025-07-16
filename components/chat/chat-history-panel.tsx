@@ -11,6 +11,7 @@ import { useNotifications } from "@/hooks/use-notifications";
 interface Conversation {
   id: string;
   title: string;
+  mode: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,6 +21,7 @@ interface ChatHistoryPanelProps {
   onSelectConversation: (conversationId: string) => void;
   onNewConversation: () => void;
   onDeleteConversation: (conversationId: string) => Promise<boolean>;
+  chatMode: 'aftermarket' | 'catalog'; // Add chat mode prop
 }
 
 export default function ChatHistoryPanel({
@@ -27,6 +29,7 @@ export default function ChatHistoryPanel({
   onSelectConversation,
   onNewConversation,
   onDeleteConversation,
+  chatMode,
 }: ChatHistoryPanelProps) {
   const { data: session } = useSession();
   const { tenantId } = useTenant();
@@ -40,7 +43,7 @@ export default function ChatHistoryPanel({
 
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/tenants/${tenantId}/conversations`);
+      const response = await fetch(`/api/tenants/${tenantId}/conversations?mode=${chatMode}`);
       
       if (!response.ok) {
         throw new Error("Failed to fetch conversations");
@@ -53,7 +56,7 @@ export default function ChatHistoryPanel({
     } finally {
       setIsLoading(false);
     }
-  }, [session, tenantId]);
+  }, [session, tenantId, chatMode]);
 
   // Initial fetch
   useEffect(() => {

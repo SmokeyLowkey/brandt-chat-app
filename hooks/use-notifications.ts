@@ -12,6 +12,7 @@ export interface Notification {
   metadata: Record<string, any>;
   read: boolean;
   createdAt: string;
+  tenantId: string; // Add tenantId property
   user: {
     name: string | null;
     email: string;
@@ -37,9 +38,16 @@ export function useNotifications() {
         url += `&since=${encodeURIComponent(lastChecked)}`;
       }
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include cookies for authentication
+      });
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error response from API: ${response.status} ${errorText}`);
         throw new Error('Failed to fetch notifications');
       }
       
@@ -87,24 +95,56 @@ export function useNotifications() {
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
     try {
-      const response = await fetch(`/api/tenants/${tenantId}/notifications/${notificationId}/read`, {
-        method: 'POST',
-      });
+      // First check if the notification exists in our local state
+      const notification = notifications.find(notif => notif.id === notificationId);
       
-      if (!response.ok) {
-        throw new Error('Failed to mark notification as read');
+      if (!notification) {
+        console.warn(`Notification ${notificationId} not found in local state`);
+        return false;
       }
       
-      // Update local state
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif.id === notificationId 
-            ? { ...notif, read: true } 
+      // Use the notification's tenant ID
+      // Fall back to the current tenant ID if not available
+      const notificationTenantId = notification.tenantId || tenantId;
+      
+      console.log(`Marking notification ${notificationId} as read for tenant ${notificationTenantId}`);
+      
+      // Optimistically update the UI
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.id === notificationId
+            ? { ...notif, read: true }
             : notif
         )
       );
+      
+      // Make the API request
+      const response = await fetch(`/api/tenants/${notificationTenantId}/notifications/${notificationId}/read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include cookies for authentication
+      });
+      
+      if (!response.ok) {
+        // If the request fails, log the error but don't revert the UI change
+        // This provides a better user experience
+        const errorText = await response.text();
+        console.error(`Error response from API: ${response.status} ${errorText}`);
+        
+        // If the notification was not found (404), we can just keep the optimistic update
+        if (response.status !== 404) {
+          console.warn('Non-404 error when marking notification as read, but keeping optimistic UI update');
+        }
+        
+        return false;
+      }
+      
+      return true;
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      return false;
     }
   };
   

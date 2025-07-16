@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Building } from "lucide-react";
 import { toast } from "sonner";
 
 interface User {
@@ -321,6 +321,20 @@ export default function UserDetailsPage({
                   </span>
                 </div>
               </div>
+              
+              {/* Add Tenant Access Management button for managers */}
+              {user.role === "MANAGER" && (
+                <div className="pt-4">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => router.push(`/dashboard/admin/tenants/${params.tenantId}/users/${params.userId}/tenant-access`)}
+                  >
+                    <Building className="mr-2 h-4 w-4" />
+                    Manage Tenant Access
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
