@@ -25,7 +25,8 @@ export async function GET(
       return new NextResponse("Forbidden", { status: 403 });
     }
 
-    const users = await prisma.user.findMany({
+    // Get direct users (those assigned to this tenant)
+    const directUsers = await prisma.user.findMany({
       where: {
         tenantId: tenantId,
       },
@@ -36,10 +37,57 @@ export async function GET(
         role: true,
         createdAt: true,
         updatedAt: true,
+        tenantId: true,
       },
     });
 
-    return NextResponse.json(users);
+    // Get managers/admins who have access through ManagerTenantAccess
+    const managerAccess = await prisma.managerTenantAccess.findMany({
+      where: {
+        tenantId: tenantId,
+      },
+      include: {
+        manager: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+            tenantId: true,
+            tenant: {
+              select: {
+                name: true,
+                slug: true,
+              }
+            }
+          },
+        },
+      },
+    });
+
+    // Combine the results, marking which users have direct vs manager access
+    const allUsers = [
+      ...directUsers.map(user => ({
+        ...user,
+        accessType: 'direct' as const,
+        homeTenant: null,
+      })),
+      ...managerAccess.map(access => ({
+        ...access.manager,
+        accessType: 'manager' as const,
+        homeTenant: access.manager.tenant ? {
+          name: access.manager.tenant.name,
+          slug: access.manager.tenant.slug,
+        } : null,
+      })),
+    ];
+
+    // Sort by name
+    allUsers.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    return NextResponse.json(allUsers);
   } catch (error) {
     console.error("[TENANT_USERS_GET]", error);
     return new NextResponse("Internal Error", { status: 500 });

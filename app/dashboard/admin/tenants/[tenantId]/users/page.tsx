@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,11 @@ interface User {
   email: string;
   role: string;
   createdAt: string;
+  accessType: 'direct' | 'manager';
+  homeTenant?: {
+    name: string;
+    slug: string;
+  } | null;
 }
 
 interface Tenant {
@@ -57,8 +62,9 @@ interface Tenant {
 export default function TenantUsersPage({
   params,
 }: {
-  params: { tenantId: string };
+  params: Promise<{ tenantId: string }>;
 }) {
+  const resolvedParams = use(params);
   const { data: session, status } = useSession();
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -89,7 +95,7 @@ export default function TenantUsersPage({
     const fetchData = async () => {
       try {
         // Fetch tenant details
-        const tenantResponse = await fetch(`/api/tenants/${params.tenantId}`);
+        const tenantResponse = await fetch(`/api/tenants/${resolvedParams.tenantId}`);
         if (!tenantResponse.ok) {
           toast.error("Failed to fetch tenant details");
           router.push("/dashboard/admin/tenants");
@@ -100,7 +106,7 @@ export default function TenantUsersPage({
         setTenant(tenantData);
 
         // Fetch users
-        const usersResponse = await fetch(`/api/tenants/${params.tenantId}/users`);
+        const usersResponse = await fetch(`/api/tenants/${resolvedParams.tenantId}/users`);
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
           setUsers(usersData);
@@ -117,13 +123,13 @@ export default function TenantUsersPage({
     if (session?.user.role === "ADMIN") {
       fetchData();
     }
-  }, [session, params.tenantId, router]);
+  }, [session, resolvedParams.tenantId, router]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      const response = await fetch(`/api/tenants/${params.tenantId}/users`, {
+      const response = await fetch(`/api/tenants/${resolvedParams.tenantId}/users`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -156,7 +162,7 @@ export default function TenantUsersPage({
     if (!selectedUser) return;
     
     try {
-      const response = await fetch(`/api/tenants/${params.tenantId}/users/${selectedUser.id}`, {
+      const response = await fetch(`/api/tenants/${resolvedParams.tenantId}/users/${selectedUser.id}`, {
         method: "DELETE",
       });
 
@@ -322,7 +328,20 @@ export default function TenantUsersPage({
         <CardHeader>
           <CardTitle>Users</CardTitle>
           <CardDescription>
-            List of all users in {tenant.name}
+            <div className="space-y-1">
+              <p>List of all users with access to {tenant.name}</p>
+              <div className="flex gap-4 text-sm">
+                <span className="text-gray-600">
+                  Direct Users: <span className="font-medium text-gray-900">{users.filter(u => u.accessType === 'direct').length}</span>
+                </span>
+                <span className="text-gray-600">
+                  Manager Access: <span className="font-medium text-gray-900">{users.filter(u => u.accessType === 'manager').length}</span>
+                </span>
+                <span className="text-gray-600">
+                  Total: <span className="font-medium text-gray-900">{users.length}</span>
+                </span>
+              </div>
+            </div>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -337,6 +356,8 @@ export default function TenantUsersPage({
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Access Type</TableHead>
+                  <TableHead>Home Tenant</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -362,27 +383,57 @@ export default function TenantUsersPage({
                       </span>
                     </TableCell>
                     <TableCell>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        user.accessType === 'direct'
+                          ? "bg-gray-100 text-gray-800"
+                          : "bg-orange-100 text-orange-800"
+                      }`}>
+                        {user.accessType === 'direct' ? 'Direct User' : 'Manager Access'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {user.homeTenant ? (
+                        <span className="text-sm text-gray-600">
+                          {user.homeTenant.name}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       {new Date(user.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => router.push(`/dashboard/admin/tenants/${params.tenantId}/users/${user.id}`)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setIsDeleteDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {user.accessType === 'direct' ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => router.push(`/dashboard/admin/tenants/${resolvedParams.tenantId}/users/${user.id}`)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/dashboard/admin/tenants/${resolvedParams.tenantId}/users/${user.id}/tenant-access`)}
+                          >
+                            Manage Access
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
