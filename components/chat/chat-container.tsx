@@ -11,7 +11,7 @@ import ChatInput from "@/components/chat/chat-input";
 import { PDFViewerIframe } from "@/components/document/pdf-viewer-iframe";
 import { usePdfViewer } from "@/hooks/use-pdf-viewer";
 
-import { ComponentData } from "@/utils/chat-processing";
+import { ComponentData, processStoredMessage } from "@/utils/chat-processing";
 
 interface Message {
   role: "user" | "assistant";
@@ -99,13 +99,17 @@ export default function ChatContainer() {
       const conversation = await response.json();
       
       // Convert messages to the format expected by the UI
-      const loadedMessages: Message[] = conversation.messages.map((msg: any) => ({
-        role: msg.role === "USER" ? "user" : "assistant",
-        content: msg.content,
-        timestamp: new Date(msg.createdAt),
-        // Extract componentData from jsonData if it exists
-        componentData: msg.jsonData?.componentData || undefined
-      }));
+      const loadedMessages: Message[] = conversation.messages.map((msg: any) => {
+        // Process stored message to extract component data if needed
+        const processed = processStoredMessage(msg);
+        
+        return {
+          role: msg.role === "USER" ? "user" : "assistant",
+          content: processed.content,
+          timestamp: new Date(msg.createdAt),
+          componentData: processed.componentData
+        };
+      });
       
       setMessages(loadedMessages);
       setSelectedConversationId(conversationId);

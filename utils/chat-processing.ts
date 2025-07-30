@@ -317,9 +317,10 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
       }
     }
     
+    // If we couldn't find a matching closing bracket, try to extract whatever we can
     if (jsonEndIndex === -1) {
-      // Couldn't find matching closing bracket
-      return { componentData: null, cleanedText: truncatedText };
+      // Try to extract up to the end of the text
+      jsonEndIndex = truncatedText.length;
     }
     
     // Extract the JSON part with size limit
@@ -329,8 +330,8 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
       return { componentData: null, cleanedText: truncatedText };
     }
     
-    // Parse the JSON
-    const parsedData = JSON.parse(jsonPart);
+    // Try to repair and parse the JSON
+    const parsedData = repairIncompleteJson(jsonPart);
     
     // Check if it's a valid component
     if (parsedData && parsedData.component && parsedData.props) {
@@ -353,16 +354,17 @@ function processAnthropicResponse(text: string): { componentData: ComponentData 
 }
 
 /**
- * Extracts JSON from an array response with output containing a code block
- * This handles the specific format from development environment:
- * [{ "output": "Text...\n\n```json\n{...}\n```" }]
+ * Extracts JSON from an array response with output containing a code block or raw JSON
+ * This handles multiple formats from development environment:
+ * 1. [{ "output": "Text...\n\n```json\n{...}\n```" }] - with code block
+ * 2. [{ "output": "Text...\n\n{...}" }] - without code block
  */
 function extractJsonFromArrayOutput(data: any): ComponentData | null {
   // Check if data is an array with at least one item
   if (Array.isArray(data) && data.length > 0 && data[0]?.output) {
     const outputText = data[0].output;
     
-    // Look for JSON code block
+    // First, look for JSON code block
     const codeBlockMatch = outputText.match(/```json\n([\s\S]*?)\n```/);
     if (codeBlockMatch && codeBlockMatch[1]) {
       try {
@@ -374,6 +376,40 @@ function extractJsonFromArrayOutput(data: any): ComponentData | null {
         }
       } catch (e) {
         console.warn("Failed to parse JSON from array output code block:", e);
+      }
+    }
+    
+    // If no code block found, try to extract raw JSON object
+    // Look for the last occurrence of a JSON object in the text
+    const jsonMatches = outputText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+    if (jsonMatches && jsonMatches.length > 0) {
+      // Try parsing from the last match (most likely to be the component data)
+      for (let i = jsonMatches.length - 1; i >= 0; i--) {
+        try {
+          const jsonData = JSON.parse(jsonMatches[i]);
+          if (jsonData && jsonData.component && jsonData.props) {
+            console.log("Extracted component data from array output raw JSON:", JSON.stringify(jsonData));
+            return jsonData;
+          }
+        } catch (e) {
+          // Continue to the next match
+          continue;
+        }
+      }
+    }
+    
+    // If still no valid JSON found, try a more aggressive approach
+    // Find the first { and the last } to extract potential JSON
+    const firstBrace = outputText.indexOf('{');
+    const lastBrace = outputText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const potentialJson = outputText.substring(firstBrace, lastBrace + 1);
+      
+      // Try to repair and parse the JSON
+      const jsonData = repairIncompleteJson(potentialJson);
+      if (jsonData && jsonData.component && jsonData.props) {
+        console.log("Extracted component data from array output using brace matching:", JSON.stringify(jsonData));
+        return jsonData;
       }
     }
   }
@@ -402,6 +438,199 @@ function extractJsonFromText(text: string): any | null {
   }
   
   return null;
+}
+
+/**
+ * Attempts to repair incomplete or malformed JSON
+ * This handles cases where the JSON might be truncated or have minor syntax errors
+ */
+function repairIncompleteJson(jsonString: string): any | null {
+  try {
+    // First, try to parse as-is
+    return JSON.parse(jsonString);
+  } catch (e) {
+    // If parsing fails, try to repair common issues
+    let repairedJson = jsonString.trim();
+    
+    // Remove trailing commas
+    repairedJson = repairedJson.replace(/,\s*([}\]])/g, '$1');
+    
+    // Handle truncated strings - close any open quotes
+    // Count quotes to see if we have an odd number (unclosed string)
+    const quoteCount = (repairedJson.match(/(?<!\\)"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      // Find the last quote and check if it's part of an incomplete value
+      const lastQuoteIndex = repairedJson.lastIndexOf('"');
+      const afterLastQuote = repairedJson.substring(lastQuoteIndex + 1);
+      
+      // If there's no closing quote, add one
+      if (!afterLastQuote.includes('"')) {
+        // Check if we're in the middle of a value
+        if (afterLastQuote.includes(':')) {
+          // We're past the key, in the value - just close the string
+          repairedJson += '"';
+        } else {
+          // We might be in the middle of a string value
+          repairedJson += '"';
+        }
+      }
+    }
+    
+    // Remove any incomplete array/object entries at the end
+    // This handles cases like [{"key": "value", {"key":
+    repairedJson = repairedJson.replace(/,\s*\{[^}]*$/, '');
+    repairedJson = repairedJson.replace(/,\s*\[[^\]]*$/, '');
+    
+    // Add missing closing braces/brackets
+    const openBraces = (repairedJson.match(/\{/g) || []).length;
+    const closeBraces = (repairedJson.match(/\}/g) || []).length;
+    const openBrackets = (repairedJson.match(/\[/g) || []).length;
+    const closeBrackets = (repairedJson.match(/\]/g) || []).length;
+    
+    // Add missing closing brackets first (inner structures)
+    for (let i = 0; i < openBrackets - closeBrackets; i++) {
+      repairedJson += ']';
+    }
+    
+    // Add missing closing braces
+    for (let i = 0; i < openBraces - closeBraces; i++) {
+      repairedJson += '}';
+    }
+    
+    // Try to parse the repaired JSON
+    try {
+      const parsed = JSON.parse(repairedJson);
+      console.log("Successfully repaired incomplete JSON");
+      return parsed;
+    } catch (e2) {
+      // If still failing, try more aggressive repairs
+      // Remove the last incomplete object from arrays
+      repairedJson = repairedJson.replace(/,\s*\{[^}]*\]\s*\}/, ']}');
+      
+      try {
+        const parsed = JSON.parse(repairedJson);
+        console.log("Successfully repaired JSON with aggressive fixes");
+        return parsed;
+      } catch (e3) {
+        // Last resort: try to extract valid JSON up to the error point
+        // This is useful for truncated JSON where the structure is valid up to a point
+        const errorMatch = e3 instanceof Error ? e3.message.match(/position (\d+)/) : null;
+        if (errorMatch) {
+          const errorPosition = parseInt(errorMatch[1]);
+          let truncated = repairedJson.substring(0, errorPosition);
+          
+          // Try to close any open structures
+          const truncatedOpenBraces = (truncated.match(/\{/g) || []).length;
+          const truncatedCloseBraces = (truncated.match(/\}/g) || []).length;
+          const truncatedOpenBrackets = (truncated.match(/\[/g) || []).length;
+          const truncatedCloseBrackets = (truncated.match(/\]/g) || []).length;
+          
+          // Remove incomplete values
+          truncated = truncated.replace(/,\s*"[^"]*"?\s*:\s*"?[^",}\]]*$/, '');
+          truncated = truncated.replace(/,\s*"[^"]*"?\s*:?\s*$/, '');
+          
+          // Add missing closing brackets
+          for (let i = 0; i < truncatedOpenBrackets - truncatedCloseBrackets; i++) {
+            truncated += ']';
+          }
+          
+          // Add missing closing braces
+          for (let i = 0; i < truncatedOpenBraces - truncatedCloseBraces; i++) {
+            truncated += '}';
+          }
+          
+          try {
+            const parsed = JSON.parse(truncated);
+            console.log("Successfully extracted valid JSON subset");
+            return parsed;
+          } catch (e4) {
+            // Give up
+          }
+        }
+        
+        console.warn("Failed to repair JSON:", e2);
+        return null;
+      }
+    }
+  }
+}
+
+/**
+ * Processes a stored message to extract component data if needed
+ * This is used when loading messages from the database
+ */
+export function processStoredMessage(message: any): { content: string; componentData?: ComponentData } {
+  // If the message already has properly extracted componentData in jsonData field, return it
+  if (message.jsonData?.componentData) {
+    return {
+      content: message.content,
+      componentData: message.jsonData.componentData
+    };
+  }
+  
+  // For older messages that might have JSON embedded in the content
+  if (message.content && typeof message.content === 'string') {
+    const content = message.content;
+    
+    // Check if content contains JSON that wasn't properly extracted
+    // Look for the pattern where text is followed by JSON
+    if (content.includes('```json')) {
+      // Extract JSON from code block - handle both complete and incomplete blocks
+      let jsonContent = '';
+      const startIndex = content.indexOf('```json\n') + 8; // 8 is length of '```json\n'
+      const endIndex = content.indexOf('\n```', startIndex);
+      
+      if (endIndex !== -1) {
+        // Complete code block
+        jsonContent = content.substring(startIndex, endIndex);
+      } else {
+        // Incomplete code block - extract everything after ```json
+        jsonContent = content.substring(startIndex);
+      }
+      
+      if (jsonContent) {
+        const jsonData = repairIncompleteJson(jsonContent);
+        if (jsonData && jsonData.component && jsonData.props) {
+          // Extract text before the code block
+          const textBeforeJson = content.substring(0, content.indexOf('```json')).trim();
+          return {
+            content: textBeforeJson || "Here's the information you requested:",
+            componentData: jsonData
+          };
+        }
+      }
+    }
+    
+    // Check for raw JSON objects in the content (without code blocks)
+    const jsonStartIndex = content.lastIndexOf('{\n  "documentId"');
+    if (jsonStartIndex > 0) {
+      const textPart = content.substring(0, jsonStartIndex).trim();
+      const jsonPart = content.substring(jsonStartIndex);
+      
+      const parsedJson = repairIncompleteJson(jsonPart);
+      if (parsedJson && parsedJson.component && parsedJson.props) {
+        return {
+          content: textPart || "Here's the information you requested:",
+          componentData: parsedJson
+        };
+      }
+    }
+    
+    // Try processAnthropicResponse for any other mixed content format
+    const anthropicResult = processAnthropicResponse(content);
+    if (anthropicResult.componentData) {
+      return {
+        content: anthropicResult.cleanedText || "Here's the information you requested:",
+        componentData: anthropicResult.componentData
+      };
+    }
+  }
+  
+  // No component data to extract, return content as-is
+  return {
+    content: message.content || '',
+    componentData: undefined
+  };
 }
 
 /**
@@ -728,14 +957,40 @@ export async function sendChatMessage(
     } else if (Array.isArray(responseData) && responseData.length > 0) {
       // First try to extract JSON from array output format
       // This handles the specific case where the response is an array with an output property
-      // containing a code block with JSON: [{ "output": "Text...\n\n```json\n{...}\n```" }]
+      // containing JSON with or without code block markers
       const arrayJsonData = extractJsonFromArrayOutput(responseData);
       if (arrayJsonData) {
         componentData = arrayJsonData;
-        // Extract the text part before the JSON code block
+        // Extract the text part before the JSON
         const outputText = responseData[0].output;
-        const textBeforeJson = outputText.substring(0, outputText.indexOf('```json')).trim();
-        responseContent = textBeforeJson;
+        
+        // Try to find where the JSON starts
+        let jsonStartIndex = outputText.indexOf('```json');
+        if (jsonStartIndex === -1) {
+          // No code block, look for the first occurrence of the JSON object
+          const jsonString = JSON.stringify(arrayJsonData);
+          jsonStartIndex = outputText.indexOf(jsonString);
+          if (jsonStartIndex === -1) {
+            // If exact match not found, look for the opening brace of component data
+            jsonStartIndex = outputText.indexOf('{\n  "documentId"');
+            if (jsonStartIndex === -1) {
+              jsonStartIndex = outputText.indexOf('{"documentId"');
+              if (jsonStartIndex === -1) {
+                // Last resort: find any JSON-like structure
+                jsonStartIndex = outputText.lastIndexOf('{');
+              }
+            }
+          }
+        }
+        
+        // Extract text before JSON
+        responseContent = jsonStartIndex > 0 ? outputText.substring(0, jsonStartIndex).trim() : '';
+        
+        // If no text was found before JSON, use a default message
+        if (!responseContent) {
+          responseContent = "Here's the information you requested:";
+        }
+        
         console.log("Successfully extracted component data from array output format");
       } else {
         // If extractJsonFromArrayOutput didn't find anything, proceed with existing logic
